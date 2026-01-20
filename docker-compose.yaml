@@ -1,0 +1,77 @@
+services:
+  postgres:
+    image: postgres:17
+    restart: always
+    container_name: db-postgres
+    environment:
+      POSTGRES_DB: backend
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: admin
+      POSTGRES_MULTIPLE_DATABASES: "keycloak"
+    volumes:
+      - ./docker-data/postgres:/var/lib/postgresql/data
+      - ./scripts/init-db.sh:/docker-entrypoint-initdb.d/init-db.sh
+    ports:
+      - "5432:5432"
+    networks:
+      - keycloak-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    command: >
+      postgres
+      -c shared_buffers=128MB
+      -c fsync=off
+      -c synchronous_commit=off
+      -c full_page_writes=off
+      -c max_connections=100
+      -c client_min_messages=warning
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.3.4
+    environment:
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://postgres:5432/keycloak
+      KC_DB_USERNAME: admin
+      KC_DB_PASSWORD: admin
+      KC_HOSTNAME: localhost
+      KC_HOSTNAME_PORT: 8080
+      KC_HOSTNAME_STRICT_HTTPS: false
+      KC_HOSTNAME_STRICT_BACKCHANNEL: false
+      KC_HTTP_ENABLED: true
+      KC_HOSTNAME_STRICT: false
+      KC_HOSTNAME_ADMIN_URL: http://localhost:8080
+      KC_ADMIN_URL: http://localhost:8080
+      KEYCLOAK_ADMIN: admin
+      KEYCLOAK_ADMIN_PASSWORD: admin
+    ports:
+      - "8080:8080"
+    restart: unless-stopped
+    networks:
+      - keycloak-network
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/127.0.0.1/8080"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    volumes:
+      - ./docker-data/keycloak:/opt/keycloak/data
+      - ./keycloak/realms:/opt/keycloak/data/import:ro
+    command: >
+      start-dev
+      --features=scripts,organization,admin-api,authorization
+      --import-realm
+
+volumes:
+  postgres_data:
+    driver: local
+
+networks:
+  keycloak-network:
+    driver: bridge

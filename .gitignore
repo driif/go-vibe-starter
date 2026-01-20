@@ -10,8 +10,8 @@ Test binary, built with `go test -c`
 # GOBIN
 bin
 
-# Docker images
-docker_data
+# Docker data volumes
+docker-data/
 
 # local go mod cache
 .pkg
