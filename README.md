@@ -17,13 +17,14 @@ Claude Code was chosen because it includes strong features for structured planni
 ### ✅ No ORM
 ORMs add unnecessary abstraction — for **humans** and **LLMs**. SQL is clear, explicit, and LLMs are great at writing it. That’s why this project uses **SQLC** to generate type-safe Go code directly from SQL queries.
 
-### ✅ RPC-first architecture
-We use **Connect RPC**, which gives you:
-- a simple way to build web servers
-- the benefits of gRPC
-- protobufs as the source of truth
+### ✅ Lightweight REST with chi
+We use **chi** for HTTP routing because:
+- Lightweight (~1000 lines), minimal dependencies
+- 100% compatible with `net/http` - idiomatic Go
+- Great middleware ecosystem without magic
+- REST is universally understood - easy integration with any service
 
-This is especially useful for microservices or systems with multiple services communicating together. Even if OpenAPI/REST is common, this project focuses on reducing boilerplate and keeping mappings minimal.
+Chi keeps routing simple and explicit while providing useful features like route grouping and path parameters.
 
 ### ✅ PostgreSQL
 Postgres is reliable, flexible, and supports **pgvector**, which is great for embeddings and vector search. In the future, I may explore **Turso**.

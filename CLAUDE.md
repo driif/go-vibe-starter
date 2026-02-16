@@ -6,7 +6,7 @@ Go Vibe Starter is a production-ready Go web server foundation for rapid prototy
 ### Tech Stack
 - **Language**: Go 1.25
 - **CLI Framework**: Cobra
-- **RPC**: Connect RPC (protobufs as source of truth)
+- **HTTP Router**: chi (lightweight REST)
 - **Authentication**: Keycloak (OIDC/JWT)
 - **Database**: PostgreSQL
 - **SQL**: SQLC (no ORM - SQL is explicit)
@@ -49,7 +49,7 @@ make run      # Build and run the server
 │   └── db_seed.go         # Database seeding
 ├── internal/
 │   └── server/
-│       ├── server.go      # Connect RPC server setup
+│       ├── server.go      # HTTP/REST server setup
 │       └── config/        # Configuration from env
 ├── pkg/
 │   ├── oidc/              # Generic OIDC utilities
@@ -71,7 +71,7 @@ All configuration is via environment variables:
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `APP_ENVIRONMENT` | `development` | Environment name |
-| `SERVICE_PORT` | `:8443` | Connect RPC server port |
+| `SERVICE_PORT` | `:9880` | HTTP server port |
 | `KEYCLOAK_URL` | `http://localhost:8080` | Keycloak base URL |
 | `KEYCLOAK_REALM` | `myrealm` | Keycloak realm |
 | `KEYCLOAK_CLIENT_ID` | `myclient` | Keycloak client ID |
@@ -171,7 +171,7 @@ if err != nil {
 7. **Ask when unsure** - Better to clarify than over-engineer
 
 ## Endpoints
-- **Connect RPC**: `http://localhost:8443` (default)
+- **REST API**: `http://localhost:9880` (default)
 - **Keycloak**: `http://localhost:8080`
 
 ---
