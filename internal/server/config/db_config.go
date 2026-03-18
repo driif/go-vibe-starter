@@ -24,7 +24,7 @@ type Database struct {
 	Host             string
 	Port             int
 	Username         string
-	Password         string `json:"-"` // sensitive
+	Password         string            `json:"-"`          // sensitive
 	Database         string
 	AdditionalParams map[string]string `json:",omitempty"` // Optional additional connection parameters mapped into the connection string
 	MaxOpenConns     int
@@ -32,52 +32,55 @@ type Database struct {
 	ConnMaxLifetime  time.Duration
 }
 
-// ConnectionString generates a connection string to be passed to sql.Open or equivalents, assuming Postgres syntax
+// ConnectionString generates a DSN for sql.Open or equivalents, assuming Postgres keyword/value syntax.
 func (c Database) ConnectionString() string {
+	return c.buildDSN(c.Database)
+}
+
+// ConnectionSpecString generates a DSN pointing to the "spec" database (used for testing against production schema dumps).
+func (c Database) ConnectionSpecString() string {
+	return c.buildDSN("spec")
+}
+
+// buildDSN constructs a PostgreSQL keyword/value connection string for the given dbname.
+// Values are quoted so that passwords or usernames containing spaces or special characters are handled correctly.
+func (c Database) buildDSN(dbname string) string {
 	var b strings.Builder
-	b.WriteString(fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s", c.Host, c.Port, c.Username, c.Password, c.Database))
+
+	fmt.Fprintf(&b, "host=%s port=%d user=%s password=%s dbname=%s",
+		escapeValue(c.Host),
+		c.Port,
+		escapeValue(c.Username),
+		escapeValue(c.Password),
+		escapeValue(dbname),
+	)
 
 	if _, ok := c.AdditionalParams["sslmode"]; !ok {
 		b.WriteString(" sslmode=disable")
 	}
 
 	if len(c.AdditionalParams) > 0 {
-		params := make([]string, 0, len(c.AdditionalParams))
-		for param := range c.AdditionalParams {
-			params = append(params, param)
+		keys := make([]string, 0, len(c.AdditionalParams))
+		for k := range c.AdditionalParams {
+			keys = append(keys, k)
 		}
+		sort.Strings(keys)
 
-		sort.Strings(params)
-
-		for _, param := range params {
-			fmt.Fprintf(&b, " %s=%s", param, c.AdditionalParams[param])
+		for _, k := range keys {
+			fmt.Fprintf(&b, " %s=%s", k, escapeValue(c.AdditionalParams[k]))
 		}
 	}
 
 	return b.String()
 }
 
-// ConnectionSpecString generates a connection string to spec db
-func (c Database) ConnectionSpecString() string {
-	var b strings.Builder
-	b.WriteString(fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=spec", c.Host, c.Port, c.Username, c.Password))
-
-	if _, ok := c.AdditionalParams["sslmode"]; !ok {
-		b.WriteString(" sslmode=disable")
+// escapeValue quotes a PostgreSQL DSN value if it contains whitespace, single quotes, or backslashes.
+// Per https://www.postgresql.org/docs/current/libpq-connect.html#LIBPQ-CONNSTRING-KEYWORD-VALUE
+func escapeValue(v string) string {
+	if !strings.ContainsAny(v, " \t\n\\'") {
+		return v
 	}
-
-	if len(c.AdditionalParams) > 0 {
-		params := make([]string, 0, len(c.AdditionalParams))
-		for param := range c.AdditionalParams {
-			params = append(params, param)
-		}
-
-		sort.Strings(params)
-
-		for _, param := range params {
-			fmt.Fprintf(&b, " %s=%s", param, c.AdditionalParams[param])
-		}
-	}
-
-	return b.String()
+	v = strings.ReplaceAll(v, `\`, `\\`)
+	v = strings.ReplaceAll(v, `'`, `\'`)
+	return "'" + v + "'"
 }
