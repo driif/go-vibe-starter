@@ -1,0 +1,2 @@
+IS_THIS_A_TEST_ENV="yes"
+PSQL_USER="dotenv_override_psql_user"
