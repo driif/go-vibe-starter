@@ -42,7 +42,7 @@ func runServer() {
 	slog.Info(
 		"Starting server",
 		"environment", cfg.Environment,
-		"port", cfg.Service.Port,
+		"port", cfg.Server.ListenAddr,
 	)
 
 	srv := server.NewWithConfig(cfg)

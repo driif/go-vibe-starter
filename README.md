@@ -42,7 +42,59 @@ Postgres is reliable, flexible, and supports **pgvector**, which is great for em
 
 ## Getting Started
 
-> Documentation and setup instructions will be added soon.
+### Prerequisites
+
+- Go 1.25+
+- Docker + Docker Compose
+
+### Local development
+
+```bash
+# 1. Clone and enter the repo
+git clone https://github.com/driif/go-vibe-starter
+cd go-vibe-starter
+
+# 2. Copy the example env file
+cp .env.example .env.local   # edit with your local values
+
+# 3. Start Postgres and Keycloak
+docker compose up -d
+
+# 4. Build and run the server
+make run
+```
+
+The server starts on `http://localhost:8080` (configurable via `SERVICE_PORT`).
+
+### Configuration
+
+All config is via environment variables. See the full reference:
+
+- [Middleware configuration](docs/middleware.md) — how each middleware layer works and how to tune it
+- [Production guide](docs/production.md) — hardening checklist before going live
+- [Environment variable reference](docs/agents/env-reference.md) — every env var with type and default
+
+### Available make targets
+
+```bash
+make build    # compile to bin/app
+make run      # build + run
+make clean    # remove bin/
+```
+
+---
+
+## For LLM agents (Claude Code)
+
+Context files for AI-assisted development are in [`docs/agents/`](docs/agents/):
+
+- [`docs/agents/README.md`](docs/agents/README.md) — project orientation, rules, patterns
+- [`docs/agents/middleware-api.md`](docs/agents/middleware-api.md) — typed middleware API reference
+- [`docs/agents/env-reference.md`](docs/agents/env-reference.md) — complete env var table
+
+Custom slash commands are in `.claude/commands/`:
+- `/add-route` — scaffold a new chi route handler
+- `/add-middleware` — scaffold a new middleware
 
 ---
 
