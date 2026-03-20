@@ -23,7 +23,7 @@ type App struct {
 }
 
 type Server struct {
-	ListenAddr                   string
+	ListenAddr                    string
 	EnableCORSMiddleware          bool
 	EnableLoggerMiddleware        bool
 	EnableRecoverMiddleware       bool
@@ -67,15 +67,10 @@ type Management struct {
 }
 
 type Keycloak struct {
-	URL                  string
-	ISS                  string
-	Realm                string
-	ClientID             string
-	ClientSecret         string
-	ExternalClientID     string
-	ExternalClientSecret string
-	AuthServerURL        string
-	CertURL              string
+	IssuerURL   string
+	Audience    string
+	HTTPTimeout time.Duration
+	ClockSkew   time.Duration
 }
 
 func DefaultServiceConfigFromEnv() App {
@@ -85,7 +80,7 @@ func DefaultServiceConfigFromEnv() App {
 	return App{
 		Environment: env.GetEnv("APP_ENVIRONMENT", "development"),
 		Server: Server{
-			ListenAddr:                   env.GetEnv("SERVICE_PORT", ":8080"),
+			ListenAddr:                    env.GetEnv("SERVICE_PORT", ":8080"),
 			EnableCORSMiddleware:          env.GetEnvAsBool("SERVER_ENABLE_CORS_MIDDLEWARE", true),
 			EnableLoggerMiddleware:        env.GetEnvAsBool("SERVER_ENABLE_LOGGER_MIDDLEWARE", true),
 			EnableRecoverMiddleware:       env.GetEnvAsBool("SERVER_ENABLE_RECOVER_MIDDLEWARE", true),
@@ -106,15 +101,16 @@ func DefaultServiceConfigFromEnv() App {
 			},
 		},
 		Keycloak: Keycloak{
-			URL:                  env.GetEnv("KEYCLOAK_URL", "http://localhost:8080"),
-			ISS:                  env.GetEnv("KEYCLOAK_ISS", "http://localhost:8080/auth/realms/myrealm"),
-			Realm:                env.GetEnv("KEYCLOAK_REALM", "myrealm"),
-			ClientID:             env.GetEnv("KEYCLOAK_CLIENT_ID", "myclient"),
-			ClientSecret:         env.GetEnv("KEYCLOAK_CLIENT_SECRET", ""),
-			ExternalClientID:     env.GetEnv("KEYCLOAK_EXTERNAL_CLIENT_ID", "myexternalclient"),
-			ExternalClientSecret: env.GetEnv("KEYCLOAK_EXTERNAL_CLIENT_SECRET", ""),
-			AuthServerURL:        env.GetEnv("KEYCLOAK_AUTH_SERVER_URL", "http://localhost:8080/auth"),
-			CertURL:              env.GetEnv("KEYCLOAK_CERT_URL", "http://localhost:8080/auth/realms/myrealm/protocol/openid-connect/certs"),
+			IssuerURL: env.GetEnv(
+				"KEYCLOAK_ISSUER_URL",
+				env.GetEnv("KEYCLOAK_ISS", "http://localhost:8080/realms/myrealm"),
+			),
+			Audience: env.GetEnv(
+				"KEYCLOAK_AUDIENCE",
+				env.GetEnv("KEYCLOAK_CLIENT_ID", "api"),
+			),
+			HTTPTimeout: time.Second * time.Duration(env.GetEnvAsInt("KEYCLOAK_HTTP_TIMEOUT_SEC", 5)),
+			ClockSkew:   time.Second * time.Duration(env.GetEnvAsInt("KEYCLOAK_CLOCK_SKEW_SEC", 30)),
 		},
 		Database: Database{
 			Host:     env.GetEnv("PGHOST", "postgres"),

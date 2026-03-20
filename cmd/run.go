@@ -45,14 +45,20 @@ func runServer() {
 		"port", cfg.Server.ListenAddr,
 	)
 
-	srv := server.NewWithConfig(cfg)
-	if err := srv.Initialize(); err != nil {
+	s := server.NewWithConfig(cfg)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	if err := s.InitDB(ctx); err != nil {
+		slog.Error("Failed to initialize database", "error", err)
+		os.Exit(1)
+	}
+	if err := s.Initialize(); err != nil {
 		slog.Error("Failed to initialize server", "error", err)
 		os.Exit(1)
 	}
 
 	go func() {
-		if err := srv.Start(); err != nil {
+		if err := s.Start(); err != nil {
 			if errors.Is(err, http.ErrServerClosed) {
 				slog.Info("Server closed")
 			} else {
@@ -66,10 +72,10 @@ func runServer() {
 	signal.Notify(quit, os.Interrupt, syscall.SIGTERM)
 	<-quit
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel = context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	if err := srv.Shutdown(ctx); err != nil && !errors.Is(err, http.ErrServerClosed) {
+	if err := s.Shutdown(ctx); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		slog.Error("Failed to gracefully shut down server", "error", err)
 		os.Exit(1)
 	}

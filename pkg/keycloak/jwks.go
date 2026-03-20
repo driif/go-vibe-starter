@@ -1,149 +1,226 @@
 package keycloak
 
 import (
+	"context"
 	"crypto/rsa"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"io"
 	"math/big"
 	"net/http"
+	"strconv"
+	"strings"
+	"sync"
 	"time"
-
-	"github.com/cubular-io/smartorder-gateway/internal/config"
-	"github.com/golang-jwt/jwt"
 )
 
-type Certs struct {
-	Keys      []Key `json:"keys"`
-	ExpiresAt int64 `json:"expires_at"`
-	Issuer    string
+const defaultCacheTTL = 5 * time.Minute
+
+type discoveryDocument struct {
+	Issuer  string `json:"issuer"`
+	JWKSURI string `json:"jwks_uri"`
 }
 
-type Key struct {
-	Kid      string   `json:"kid"`
-	Kty      string   `json:"kty"`
-	Alg      string   `json:"alg"`
-	Use      string   `json:"use"`
-	N        string   `json:"n"`
-	E        string   `json:"e"`
-	X5c      []string `json:"x5c"`
-	X5t      string   `json:"x5t"`
-	X5t_S256 string   `json:"x5t#S256"`
+type jwksDocument struct {
+	Keys []jsonWebKey `json:"keys"`
 }
 
-func GetPublicKeys(cfg config.Keycloak) (*Certs, error) {
-	realmUrl := cfg.URL + "/realms/" + cfg.Realm
-	url := realmUrl + "/protocol/openid-connect/certs"
+type jsonWebKey struct {
+	KeyID string `json:"kid"`
+	Type  string `json:"kty"`
+	N     string `json:"n"`
+	E     string `json:"e"`
+}
 
-	client := &http.Client{Timeout: 10 * time.Second}
-	resp, err := client.Get(url)
+type cacheEntry[T any] struct {
+	Value     T
+	ExpiresAt time.Time
+}
+
+type cacheState struct {
+	mu        sync.RWMutex
+	discovery cacheEntry[discoveryDocument]
+	keys      cacheEntry[map[string]*rsa.PublicKey]
+}
+
+func (s *cacheState) discoveryValue() (discoveryDocument, time.Time, bool) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if s.discovery.Value.JWKSURI == "" {
+		return discoveryDocument{}, time.Time{}, false
+	}
+	return s.discovery.Value, s.discovery.ExpiresAt, true
+}
+
+func (s *cacheState) setDiscovery(doc discoveryDocument, expiry time.Time) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.discovery = cacheEntry[discoveryDocument]{Value: doc, ExpiresAt: expiry}
+}
+
+func (s *cacheState) keyValue(keyID string) (*rsa.PublicKey, time.Time, bool) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if len(s.keys.Value) == 0 {
+		return nil, time.Time{}, false
+	}
+	key, ok := s.keys.Value[keyID]
+	return key, s.keys.ExpiresAt, ok
+}
+
+func (s *cacheState) setKeys(keys map[string]*rsa.PublicKey, expiry time.Time) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.keys = cacheEntry[map[string]*rsa.PublicKey]{Value: keys, ExpiresAt: expiry}
+}
+
+func (v *Verifier) discovery(ctx context.Context, force bool) (discoveryDocument, error) {
+	if !force {
+		doc, expiry, ok := v.cache.discoveryValue()
+		if ok && time.Now().Before(expiry) {
+			return doc, nil
+		}
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, v.discoveryURL(), nil)
 	if err != nil {
-		resp.Body.Close()
-		return &Certs{}, err
+		return discoveryDocument{}, err
+	}
+
+	resp, err := v.client.Do(req)
+	if err != nil {
+		return discoveryDocument{}, fmt.Errorf("%w: %v", ErrDiscoveryFailed, err)
 	}
 	defer resp.Body.Close()
 
-	var certs *Certs
-	err = json.NewDecoder(resp.Body).Decode(&certs)
-	if err != nil {
-		return certs, err
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
+		return discoveryDocument{}, fmt.Errorf("%w: %s", ErrDiscoveryFailed, strings.TrimSpace(string(body)))
 	}
 
-	// Set expiration time in 5 minutes
-	certs.ExpiresAt = time.Now().Add(5 * time.Minute).Unix()
-	certs.Issuer = cfg.ISS + "/realms/" + cfg.Realm
+	var doc discoveryDocument
+	if err := json.NewDecoder(resp.Body).Decode(&doc); err != nil {
+		return discoveryDocument{}, fmt.Errorf("%w: %v", ErrDiscoveryFailed, err)
+	}
 
-	return certs, nil
+	expiry := responseExpiry(resp.Header, defaultCacheTTL)
+	v.cache.setDiscovery(doc, expiry)
+
+	return doc, nil
 }
 
-// Expired checks if the certs are expired
-func (c *Certs) Expired() bool {
-	return time.Now().Unix() > c.ExpiresAt
+func (v *Verifier) publicKey(ctx context.Context, keyID string) (*rsa.PublicKey, error) {
+	key, expiry, ok := v.cache.keyValue(keyID)
+	if ok && time.Now().Before(expiry) {
+		return key, nil
+	}
+
+	if err := v.refreshKeys(ctx, false); err != nil {
+		return nil, err
+	}
+
+	key, _, ok = v.cache.keyValue(keyID)
+	if ok {
+		return key, nil
+	}
+
+	if err := v.refreshKeys(ctx, true); err != nil {
+		return nil, err
+	}
+
+	key, _, ok = v.cache.keyValue(keyID)
+	if !ok {
+		return nil, fmt.Errorf("%w: %s", ErrKeyNotFound, keyID)
+	}
+
+	return key, nil
 }
 
-// Refresh refreshes the certs
-func (c *Certs) Refresh(cfg config.Keycloak) error {
-	certs, err := GetPublicKeys(cfg)
+func (v *Verifier) refreshKeys(ctx context.Context, forceDiscovery bool) error {
+	doc, err := v.discovery(ctx, forceDiscovery)
 	if err != nil {
 		return err
 	}
 
-	*c = *certs
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, doc.JWKSURI, nil)
+	if err != nil {
+		return err
+	}
 
+	resp, err := v.client.Do(req)
+	if err != nil {
+		return fmt.Errorf("%w: %v", ErrJWKSFetchFailed, err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
+		return fmt.Errorf("%w: %s", ErrJWKSFetchFailed, strings.TrimSpace(string(body)))
+	}
+
+	var jwks jwksDocument
+	if err := json.NewDecoder(resp.Body).Decode(&jwks); err != nil {
+		return fmt.Errorf("%w: %v", ErrJWKSFetchFailed, err)
+	}
+
+	keys := make(map[string]*rsa.PublicKey, len(jwks.Keys))
+	for _, jwk := range jwks.Keys {
+		if jwk.Type != "RSA" || jwk.KeyID == "" {
+			continue
+		}
+
+		key, err := jwk.rsaPublicKey()
+		if err != nil {
+			return fmt.Errorf("%w: %v", ErrJWKSFetchFailed, err)
+		}
+		keys[jwk.KeyID] = key
+	}
+
+	v.cache.setKeys(keys, responseExpiry(resp.Header, defaultCacheTTL))
 	return nil
 }
 
-// VerifyToken verifies the token
-func (c *Certs) VerifyToken(tokenString string) (*Auth, error) {
-	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
-		// Validate signing method
-		if _, ok := token.Method.(*jwt.SigningMethodRSA); !ok {
-			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
-		}
-
-		// Find the correct key
-		var key *Key
-		for _, k := range c.Keys {
-			if k.Kid == token.Header["kid"] {
-				key = &k
-				break
-			}
-		}
-		if key == nil {
-			return nil, fmt.Errorf("unable to find appropriate key")
-		}
-
-		// Convert key to RSA Public Key
-		rsaPublicKey, err := jwkToRsaPublicKey(key)
-		if err != nil {
-			return nil, err
-		}
-
-		return rsaPublicKey, nil
-	})
-
+func (jwk jsonWebKey) rsaPublicKey() (*rsa.PublicKey, error) {
+	nBytes, err := base64.RawURLEncoding.DecodeString(jwk.N)
 	if err != nil {
 		return nil, err
 	}
 
-	if !token.Valid {
-		return nil, fmt.Errorf("Token is invalid")
+	eBytes, err := base64.RawURLEncoding.DecodeString(jwk.E)
+	if err != nil {
+		return nil, err
 	}
 
-	auth := &Auth{}
-	// Map JWT claims to Auth object
-	if claims, ok := token.Claims.(jwt.MapClaims); ok {
-		// Check issuer
-		if claims["iss"] != c.Issuer {
-			return nil, fmt.Errorf("invalid issuer")
-		}
-
-		auth = AuthFromJWT(claims)
+	n := new(big.Int).SetBytes(nBytes)
+	e := int(new(big.Int).SetBytes(eBytes).Int64())
+	if e == 0 {
+		return nil, fmt.Errorf("invalid exponent")
 	}
 
-	// if err := auth.Validate(); err != nil {
-	// 	return nil, err
-	// }
-
-	return auth, nil
+	return &rsa.PublicKey{N: n, E: e}, nil
 }
 
-func jwkToRsaPublicKey(key *Key) (*rsa.PublicKey, error) {
-	decodedE, err := base64.RawURLEncoding.DecodeString(key.E)
-	if err != nil {
-		return nil, err
+func responseExpiry(headers http.Header, fallback time.Duration) time.Time {
+	cacheControl := headers.Get("Cache-Control")
+	if cacheControl != "" {
+		for _, part := range strings.Split(cacheControl, ",") {
+			part = strings.TrimSpace(part)
+			if !strings.HasPrefix(part, "max-age=") {
+				continue
+			}
+			seconds, err := strconv.Atoi(strings.TrimPrefix(part, "max-age="))
+			if err == nil {
+				return time.Now().Add(time.Duration(seconds) * time.Second)
+			}
+		}
 	}
 
-	decodedN, err := base64.RawURLEncoding.DecodeString(key.N)
-	if err != nil {
-		return nil, err
+	if expires := headers.Get("Expires"); expires != "" {
+		if expiry, err := http.ParseTime(expires); err == nil {
+			return expiry
+		}
 	}
 
-	e := new(big.Int).SetBytes(decodedE).Int64()
-	n := new(big.Int).SetBytes(decodedN)
-
-	return &rsa.PublicKey{
-		N: n,
-		E: int(e),
-	}, nil
+	return time.Now().Add(fallback)
 }

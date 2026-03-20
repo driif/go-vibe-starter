@@ -1,113 +1,120 @@
 package keycloak
 
 import (
-	"encoding/json"
-	"io"
+	"context"
+	"crypto"
+	"crypto/rsa"
+	"encoding/base64"
+	"fmt"
 	"net/http"
 	"strings"
-
-	"github.com/cubular-io/smartorder-gateway/internal/config"
+	"time"
 )
 
-type Keycloak struct {
-	Certs  *Certs
-	Config config.Keycloak
+type Config struct {
+	IssuerURL   string
+	Audience    string
+	HTTPTimeout time.Duration
+	ClockSkew   time.Duration
 }
 
-func NewWithConfigs(config config.Keycloak) *Keycloak {
-	return &Keycloak{
-		Certs:  nil,
-		Config: config,
-	}
+type Verifier struct {
+	cfg    Config
+	client *http.Client
+	cache  cacheState
 }
 
-// MakeRequestPayload makes URLEncoded payload from map
-func MakeRequestPayload(m map[string]string) io.Reader {
-	var payload string
-	for k, v := range m {
-		payload += k + "=" + v + "&"
+func New(config Config) (*Verifier, error) {
+	if strings.TrimSpace(config.IssuerURL) == "" {
+		return nil, fmt.Errorf("%w: issuer url is required", ErrInvalidConfiguration)
 	}
-	// delete last &
-	payload = strings.TrimSuffix(payload, "&")
-	return strings.NewReader(payload)
+	if strings.TrimSpace(config.Audience) == "" {
+		return nil, fmt.Errorf("%w: audience is required", ErrInvalidConfiguration)
+	}
+	if config.HTTPTimeout <= 0 {
+		config.HTTPTimeout = 5 * time.Second
+	}
+	if config.ClockSkew < 0 {
+		return nil, fmt.Errorf("%w: clock skew must be non-negative", ErrInvalidConfiguration)
+	}
+	if config.ClockSkew == 0 {
+		config.ClockSkew = 30 * time.Second
+	}
+
+	return &Verifier{
+		cfg: config,
+		client: &http.Client{
+			Timeout: config.HTTPTimeout,
+		},
+	}, nil
 }
 
-// GetAuthFromResponse gets Auth from http response
-func GetAuthFromResponse(res *http.Response) (Auth, error) {
-	response, err := io.ReadAll(res.Body)
-	if err != nil {
-		return Auth{}, err
-	}
-
-	var keycloakAuth Auth
-	// decode response
-	err = json.Unmarshal(response, &keycloakAuth)
-	if err != nil {
-		return keycloakAuth, err
-	}
-
-	return keycloakAuth, nil
-}
-
-// GetAccessTokenFromPesponse gets Token from http response
-func GetAccessTokenFromPesponse(res *http.Response) (Token, error) {
-
-	response, err := io.ReadAll(res.Body)
-	if err != nil {
-		return Token{}, err
-	}
-
-	var keycloakToken Token
-	// decode response
-	err = json.Unmarshal(response, &keycloakToken)
-	if err != nil {
-		return keycloakToken, err
-	}
-
-	return keycloakToken, nil
-}
-
-// IntrospectPayload introspects payload with Keycloak
-func IntrospectPayload(conf config.Keycloak, payload io.Reader) (*Auth, error) {
-	url := conf.URL + "/realms/" + conf.Realm + "/protocol/openid-connect/token/introspect"
-	res, err := http.Post(url, "application/x-www-form-urlencoded", payload)
-	if err != nil {
-		return nil, err
-	}
-	defer res.Body.Close()
-
-	keycloakAuth, err := GetAuthFromResponse(res)
+func (v *Verifier) Verify(ctx context.Context, rawToken string) (*Principal, error) {
+	header, claims, rawClaims, parts, err := parseToken(rawToken)
 	if err != nil {
 		return nil, err
 	}
 
-	return &keycloakAuth, nil
+	if header.KeyID == "" {
+		return nil, ErrMalformedToken
+	}
+
+	hash, err := signingHash(header.Algorithm)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := claims.validate(v.cfg, time.Now()); err != nil {
+		return nil, err
+	}
+
+	publicKey, err := v.publicKey(ctx, header.KeyID)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := verifySignature(parts[0]+"."+parts[1], parts[2], publicKey, hash); err != nil {
+		return nil, err
+	}
+
+	return mapPrincipal(rawToken, claims, rawClaims), nil
 }
 
-// IntrospectInternal introspects token for internal client
-func IntrospectInternal(conf config.Keycloak, token string) (*Auth, error) {
-	// Generate map for Keycloak Request
-	m := make(map[string]string)
-	m["client_id"] = conf.ClientID
-	m["token"] = token
-	m["client_secret"] = conf.ClientSecret
-
-	// Make Payload for Keycloak Request from a map
-	payload := MakeRequestPayload(m)
-
-	return IntrospectPayload(conf, payload)
+func (v *Verifier) discoveryURL() string {
+	return strings.TrimRight(v.cfg.IssuerURL, "/") + "/.well-known/openid-configuration"
 }
 
-// IntrospectExternal introspects token for external client
-func IntrospectExternal(conf config.Keycloak, token string) (*Auth, error) {
-	// Generate map for Keycloak Request
-	m := make(map[string]string)
-	m["client_id"] = conf.ExternalClientID
-	m["token"] = token
-	m["client_secret"] = conf.ExternalClientSecret
+func signingHash(alg string) (crypto.Hash, error) {
+	switch alg {
+	case "RS256":
+		return crypto.SHA256, nil
+	case "RS384":
+		return crypto.SHA384, nil
+	case "RS512":
+		return crypto.SHA512, nil
+	default:
+		return 0, fmt.Errorf("%w: %s", ErrUnsupportedSigningAlg, alg)
+	}
+}
 
-	// Make Payload for Keycloak Request from a map
-	payload := MakeRequestPayload(m)
+func verifySignature(signingInput string, signatureSegment string, publicKey *rsa.PublicKey, hash crypto.Hash) error {
+	signature, err := decodeSegment(signatureSegment)
+	if err != nil {
+		return fmt.Errorf("%w: %v", ErrMalformedToken, err)
+	}
 
-	return IntrospectPayload(conf, payload)
+	hasher := hash.New()
+	if _, err := hasher.Write([]byte(signingInput)); err != nil {
+		return err
+	}
+
+	if err := rsa.VerifyPKCS1v15(publicKey, hash, hasher.Sum(nil), signature); err != nil {
+		return ErrInvalidSignature
+	}
+
+	return nil
+}
+
+func decodeSegment(segment string) ([]byte, error) {
+	return base64.RawURLEncoding.DecodeString(segment)
 }

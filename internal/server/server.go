@@ -13,6 +13,7 @@ import (
 
 	"github.com/driif/go-vibe-starter/internal/server/config"
 	srvmiddleware "github.com/driif/go-vibe-starter/internal/server/middleware"
+	"github.com/driif/go-vibe-starter/pkg/keycloak"
 	"github.com/go-chi/chi/v5"
 	chimiddleware "github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
@@ -23,15 +24,27 @@ type Server struct {
 	Router chi.Router
 	Config config.App
 	DB     *sql.DB
+	Auth   *keycloak.Verifier
 	//Mailer *mailer.Mailer
 	//Push   *push.Service
 }
 
 func NewWithConfig(config config.App) *Server {
+	authVerifier, err := keycloak.New(keycloak.Config{
+		IssuerURL:   config.Keycloak.IssuerURL,
+		Audience:    config.Keycloak.Audience,
+		HTTPTimeout: config.Keycloak.HTTPTimeout,
+		ClockSkew:   config.Keycloak.ClockSkew,
+	})
+	if err != nil {
+		panic(err)
+	}
+
 	return &Server{
 		Config: config,
 		Router: nil,
 		DB:     nil,
+		Auth:   authVerifier,
 	}
 }
 
@@ -39,7 +52,7 @@ func (s *Server) Ready() bool {
 	return s.DB != nil && s.Router != nil
 }
 
-func (s *Server) initDB(ctx context.Context) error {
+func (s *Server) InitDB(ctx context.Context) error {
 	db, err := sql.Open("postgres", s.Config.Database.ConnectionString())
 	if err != nil {
 		return err
