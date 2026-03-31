@@ -7,6 +7,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/driif/go-vibe-starter/internal/server/errs"
 	"github.com/driif/go-vibe-starter/pkg/keycloak"
 )
 
@@ -50,13 +51,21 @@ func Authenticate(verifier TokenVerifier, opts Options) func(http.Handler) http.
 					next.ServeHTTP(w, r)
 					return
 				}
-				http.Error(w, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
+				if errors.Is(err, ErrMalformedToken) {
+					errs.Write(w, http.StatusBadRequest, ErrMalformedToken)
+					return
+				}
+				errs.Write(w, http.StatusUnauthorized, ErrUnauthenticated)
 				return
 			}
 
 			principal, err := verifier.Verify(r.Context(), token)
 			if err != nil {
-				http.Error(w, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
+				if errors.Is(err, keycloak.ErrMalformedToken) {
+					errs.Write(w, http.StatusBadRequest, keycloak.ErrMalformedToken)
+					return
+				}
+				errs.Write(w, http.StatusUnauthorized, ErrUnauthenticated)
 				return
 			}
 
@@ -70,11 +79,11 @@ func RequireRealmRoles(all bool, roles ...string) func(http.Handler) http.Handle
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			principal, ok := PrincipalFromContext(r.Context())
 			if !ok {
-				http.Error(w, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
+				errs.Write(w, http.StatusUnauthorized, ErrUnauthenticated)
 				return
 			}
 			if !matchRoles(all, roles, principal.HasRealmRole) {
-				http.Error(w, http.StatusText(http.StatusForbidden), http.StatusForbidden)
+				errs.Write(w, http.StatusForbidden, ErrForbidden)
 				return
 			}
 			next.ServeHTTP(w, r)
@@ -87,13 +96,13 @@ func RequireClientRoles(clientID string, all bool, roles ...string) func(http.Ha
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			principal, ok := PrincipalFromContext(r.Context())
 			if !ok {
-				http.Error(w, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
+				errs.Write(w, http.StatusUnauthorized, ErrUnauthenticated)
 				return
 			}
 			if !matchRoles(all, roles, func(role string) bool {
 				return principal.HasClientRole(clientID, role)
 			}) {
-				http.Error(w, http.StatusText(http.StatusForbidden), http.StatusForbidden)
+				errs.Write(w, http.StatusForbidden, ErrForbidden)
 				return
 			}
 			next.ServeHTTP(w, r)
@@ -106,11 +115,11 @@ func RequireOrganization() func(http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			principal, ok := PrincipalFromContext(r.Context())
 			if !ok {
-				http.Error(w, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
+				errs.Write(w, http.StatusUnauthorized, ErrUnauthenticated)
 				return
 			}
 			if len(principal.Organizations) == 0 {
-				http.Error(w, http.StatusText(http.StatusForbidden), http.StatusForbidden)
+				errs.Write(w, http.StatusForbidden, ErrForbidden)
 				return
 			}
 			next.ServeHTTP(w, r)
@@ -123,11 +132,28 @@ func RequireAnyOrganization(orgs ...string) func(http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			principal, ok := PrincipalFromContext(r.Context())
 			if !ok {
-				http.Error(w, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
+				errs.Write(w, http.StatusUnauthorized, ErrUnauthenticated)
 				return
 			}
 			if !slices.ContainsFunc(orgs, principal.HasOrganization) {
-				http.Error(w, http.StatusText(http.StatusForbidden), http.StatusForbidden)
+				errs.Write(w, http.StatusForbidden, ErrForbidden)
+				return
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
+func RequireScopes(all bool, scopes ...string) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			principal, ok := PrincipalFromContext(r.Context())
+			if !ok {
+				errs.Write(w, http.StatusUnauthorized, ErrUnauthenticated)
+				return
+			}
+			if !matchRoles(all, scopes, principal.HasScope) {
+				errs.Write(w, http.StatusForbidden, ErrForbidden)
 				return
 			}
 			next.ServeHTTP(w, r)

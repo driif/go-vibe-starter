@@ -21,6 +21,7 @@ type Principal struct {
 	ClientRoles   map[string][]string
 	Claims        map[string]any
 	Token         string
+	Scopes        []string
 }
 
 func (p *Principal) HasRealmRole(role string) bool {
@@ -34,6 +35,10 @@ func (p *Principal) HasClientRole(clientID, role string) bool {
 
 func (p *Principal) HasOrganization(org string) bool {
 	return slices.Contains(p.Organizations, org)
+}
+
+func (p *Principal) HasScope(scope string) bool {
+	return slices.Contains(p.Scopes, scope)
 }
 
 type tokenHeader struct {
@@ -58,6 +63,7 @@ type rawTokenClaims struct {
 	Organizations     organizationsClaim        `json:"organization"`
 	RealmAccess       realmAccessClaim          `json:"realm_access"`
 	ResourceAccess    map[string]resourceAccess `json:"resource_access"`
+	Scope             string                    `json:"scope"`
 }
 
 type realmAccessClaim struct {
@@ -198,5 +204,6 @@ func mapPrincipal(rawToken string, claims rawTokenClaims, raw map[string]any) *P
 		ClientRoles:   clientRoles,
 		Claims:        raw,
 		Token:         rawToken,
+		Scopes:        strings.Fields(claims.Scope),
 	}
 }
