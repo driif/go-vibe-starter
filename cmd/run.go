@@ -10,6 +10,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/driif/go-vibe-starter/internal/api/router"
 	"github.com/driif/go-vibe-starter/internal/server"
 	"github.com/driif/go-vibe-starter/internal/server/config"
 
@@ -56,6 +57,7 @@ func runServer() {
 		slog.Error("Failed to initialize server", "error", err)
 		os.Exit(1)
 	}
+	router.RegisterHandlersV1(s)
 
 	go func() {
 		if err := s.Start(); err != nil {

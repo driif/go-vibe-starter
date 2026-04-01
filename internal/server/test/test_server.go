@@ -21,6 +21,9 @@ func E2e(t *testing.T, closure func(s *server.Server)) {
 	s := server.NewWithConfig(conf)
 	s.DB = testDB.DB
 
+	if err := s.Initialize(); err != nil {
+		t.Fatalf("failed to initialize server: %v", err)
+	}
 	router.RegisterHandlersV1(s)
 
 	closure(s)

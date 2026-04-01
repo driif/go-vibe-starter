@@ -13,13 +13,14 @@ import (
 )
 
 type App struct {
-	Environment string
-	Server      Server
-	Keycloak    Keycloak
-	Database    Database
-	Logger      Logger
-	Pprof       Pprof
-	Management  Management
+	Environment   string
+	Server        Server
+	Keycloak      Keycloak
+	KeycloakAdmin KeycloakAdmin
+	Database      Database
+	Logger        Logger
+	Pprof         Pprof
+	Management    Management
 }
 
 type Server struct {
@@ -73,6 +74,13 @@ type Keycloak struct {
 	ClockSkew   time.Duration
 }
 
+type KeycloakAdmin struct {
+	BaseURL      string
+	Realm        string
+	ClientID     string
+	ClientSecret string
+}
+
 func DefaultServiceConfigFromEnv() App {
 	if !tests.RunningInTest() {
 		dotenv.TryLoad(filepath.Join(env.GetProjectRootDir(), ".env.local"), os.Setenv)
@@ -111,6 +119,12 @@ func DefaultServiceConfigFromEnv() App {
 			),
 			HTTPTimeout: time.Second * time.Duration(env.GetEnvAsInt("KEYCLOAK_HTTP_TIMEOUT_SEC", 5)),
 			ClockSkew:   time.Second * time.Duration(env.GetEnvAsInt("KEYCLOAK_CLOCK_SKEW_SEC", 30)),
+		},
+		KeycloakAdmin: KeycloakAdmin{
+			BaseURL:      env.GetEnv("KEYCLOAK_ADMIN_BASE_URL", "http://localhost:8080"),
+			Realm:        env.GetEnv("KEYCLOAK_ADMIN_REALM", "myrealm"),
+			ClientID:     env.GetEnv("KEYCLOAK_ADMIN_CLIENT_ID", ""),
+			ClientSecret: env.GetEnv("KEYCLOAK_ADMIN_CLIENT_SECRET", ""),
 		},
 		Database: Database{
 			Host:     env.GetEnv("PGHOST", "postgres"),

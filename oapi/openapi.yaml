@@ -1,0 +1,185 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Go Vibe Starter - Users API",
+    "description": "Manages users sourced from Keycloak. Supports fetching the current user, listing all users, and filtering by organization.",
+    "version": "1.0.0"
+  },
+  "servers": [
+    {
+      "url": "http://localhost:9880",
+      "description": "Local development server"
+    }
+  ],
+  "security": [{ "bearerAuth": [] }],
+  "tags": [
+    {
+      "name": "Users",
+      "description": "User management via Keycloak"
+    }
+  ],
+  "paths": {
+    "/v1/users/me": {
+      "get": {
+        "tags": ["Users"],
+        "summary": "Get current user",
+        "description": "Returns the authenticated user's profile derived from the JWT claims. No external call is made.",
+        "operationId": "getMe",
+        "responses": {
+          "200": {
+            "description": "Current user profile",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/UserResponse" },
+                "example": {
+                  "id": "a3f1c2d4-e5b6-7890-abcd-ef1234567890",
+                  "username": "john.doe",
+                  "email": "john.doe@example.com",
+                  "firstName": "John",
+                  "lastName": "Doe",
+                  "enabled": true,
+                  "organizations": ["acme-corp"]
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" }
+        }
+      }
+    },
+    "/v1/users": {
+      "get": {
+        "tags": ["Users"],
+        "summary": "List users",
+        "description": "Returns users from Keycloak. If `organization` query param is provided, returns only members of that organization. Requires a configured Keycloak admin service account.",
+        "operationId": "listUsers",
+        "parameters": [
+          {
+            "name": "organization",
+            "in": "query",
+            "required": false,
+            "description": "Filter users by Keycloak organization alias.",
+            "schema": {
+              "type": "string",
+              "example": "acme-corp"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of users",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": { "$ref": "#/components/schemas/UserResponse" }
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "503": { "$ref": "#/components/responses/AdminNotConfigured" }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "Keycloak-issued JWT. Obtain via OIDC authorization code flow against the configured Keycloak realm."
+      }
+    },
+    "responses": {
+      "Unauthorized": {
+        "description": "Missing or invalid Bearer token.",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+          }
+        }
+      },
+      "Forbidden": {
+        "description": "Authenticated but insufficient permissions.",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+          }
+        }
+      },
+      "AdminNotConfigured": {
+        "description": "Keycloak admin service account is not configured on this server.",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+          }
+        }
+      }
+    },
+    "schemas": {
+      "UserResponse": {
+        "type": "object",
+        "description": "A user profile. Sourced from JWT claims (for /me) or Keycloak Admin API (for /users).",
+        "required": ["id", "username", "enabled"],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Keycloak user ID.",
+            "example": "a3f1c2d4-e5b6-7890-abcd-ef1234567890"
+          },
+          "username": {
+            "type": "string",
+            "example": "john.doe"
+          },
+          "email": {
+            "type": "string",
+            "format": "email",
+            "example": "john.doe@example.com"
+          },
+          "firstName": {
+            "type": "string",
+            "example": "John"
+          },
+          "lastName": {
+            "type": "string",
+            "example": "Doe"
+          },
+          "enabled": {
+            "type": "boolean",
+            "description": "Whether the user account is active in Keycloak.",
+            "example": true
+          },
+          "organizations": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "Keycloak organization aliases the user belongs to.",
+            "example": ["acme-corp", "partner-org"]
+          }
+        }
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "description": "Standard error response.",
+        "required": ["status", "title"],
+        "properties": {
+          "status": {
+            "type": "integer",
+            "example": 401
+          },
+          "title": {
+            "type": "string",
+            "example": "Unauthorized"
+          },
+          "detail": {
+            "type": "string",
+            "example": "missing bearer token"
+          }
+        }
+      }
+    }
+  }
+}

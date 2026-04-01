@@ -20,11 +20,12 @@ import (
 )
 
 type Server struct {
-	server *http.Server
-	Router chi.Router
-	Config config.App
-	DB     *sql.DB
-	Auth   *keycloak.Verifier
+	server        *http.Server
+	Router        chi.Router
+	Config        config.App
+	DB            *sql.DB
+	Auth          *keycloak.Verifier
+	KeycloakAdmin *keycloak.AdminClient
 	//Mailer *mailer.Mailer
 	//Push   *push.Service
 }
@@ -40,12 +41,29 @@ func NewWithConfig(config config.App) *Server {
 		panic(err)
 	}
 
-	return &Server{
+	s := &Server{
 		Config: config,
 		Router: nil,
 		DB:     nil,
 		Auth:   authVerifier,
 	}
+
+	if config.KeycloakAdmin.ClientID != "" {
+		adminClient, err := keycloak.NewAdminClient(keycloak.AdminConfig{
+			BaseURL:      config.KeycloakAdmin.BaseURL,
+			Realm:        config.KeycloakAdmin.Realm,
+			ClientID:     config.KeycloakAdmin.ClientID,
+			ClientSecret: config.KeycloakAdmin.ClientSecret,
+			HTTPTimeout:  config.Keycloak.HTTPTimeout,
+		})
+		if err != nil {
+			slog.Warn("keycloak admin client not initialized", "error", err)
+		} else {
+			s.KeycloakAdmin = adminClient
+		}
+	}
+
+	return s
 }
 
 func (s *Server) Ready() bool {
