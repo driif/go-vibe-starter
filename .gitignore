@@ -37,3 +37,6 @@ __debug_bin
 
 # this file is used for local testing (secrets!) but should never be commited into git
 .env
+
+# ralphex progress logs
+.ralphex/progress/
