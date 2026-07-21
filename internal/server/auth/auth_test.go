@@ -91,6 +91,23 @@ func TestAuthenticateRejectsWrongScheme(t *testing.T) {
 	}
 }
 
+func TestAuthenticateRejectsMalformedToken(t *testing.T) {
+	handler := Authenticate(stubVerifier{
+		principal: &keycloak.Principal{Subject: "user-1"},
+	}, Options{})(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	}))
+
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req.Header.Set("Authorization", "Bearer")
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d", rec.Code)
+	}
+}
+
 func TestRequireRealmRoles(t *testing.T) {
 	handler := RequireRealmRoles(true, "admin")(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNoContent)

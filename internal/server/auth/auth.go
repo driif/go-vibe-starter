@@ -168,8 +168,13 @@ func bearerToken(value string, scheme string) (string, error) {
 	}
 
 	actualScheme, token, ok := strings.Cut(value, " ")
-	if !ok || !strings.EqualFold(actualScheme, scheme) {
+	if !ok {
 		return "", ErrMalformedToken
+	}
+	if !strings.EqualFold(actualScheme, scheme) {
+		// a different auth scheme means no bearer token is present; treat it as
+		// missing credentials (401 / optional pass-through), not malformed.
+		return "", ErrMissingBearerToken
 	}
 
 	token = strings.TrimSpace(token)
