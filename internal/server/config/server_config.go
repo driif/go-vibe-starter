@@ -15,6 +15,7 @@ import (
 type App struct {
 	Environment   string
 	Server        Server
+	Auth          Auth
 	Keycloak      Keycloak
 	KeycloakAdmin KeycloakAdmin
 	Database      Database
@@ -107,6 +108,11 @@ func DefaultServiceConfigFromEnv() App {
 				HSTSPreloadEnabled:    env.GetEnvAsBool("SERVER_SECURE_HSTS_PRELOAD_ENABLED", false),
 				ReferrerPolicy:        env.GetEnv("SERVER_SECURE_REFERRER_POLICY", ""),
 			},
+		},
+		Auth: Auth{
+			Provider:   env.GetEnv("AUTH_PROVIDER", AuthProviderNone),
+			DevSubject: env.GetEnv("AUTH_DEV_SUBJECT", "local-dev"),
+			DevRoles:   env.GetEnvAsStringArrTrimmed("AUTH_DEV_ROLES", []string{"admin"}),
 		},
 		Keycloak: Keycloak{
 			IssuerURL: env.GetEnv(

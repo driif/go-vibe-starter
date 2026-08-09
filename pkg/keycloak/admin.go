@@ -13,10 +13,10 @@ import (
 
 // AdminConfig holds credentials for the Keycloak Admin REST API service account.
 type AdminConfig struct {
-	BaseURL      string        // e.g. "http://localhost:8080"
-	Realm        string        // e.g. "myrealm"
-	ClientID     string        // service account client ID
-	ClientSecret string        // service account client secret
+	BaseURL      string // e.g. "http://localhost:8080"
+	Realm        string // e.g. "myrealm"
+	ClientID     string // service account client ID
+	ClientSecret string // service account client secret
 	HTTPTimeout  time.Duration
 }
 

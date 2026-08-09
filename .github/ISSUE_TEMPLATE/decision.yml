@@ -1,0 +1,37 @@
+name: Decision
+description: An open decision that has to be settled before work can proceed
+title: "[decision] "
+labels: [decision]
+body:
+  - type: textarea
+    id: question
+    attributes:
+      label: The question
+      description: State it so that a yes/no or a named option answers it.
+    validations:
+      required: true
+
+  - type: textarea
+    id: options
+    attributes:
+      label: Options considered
+      description: Each option with its cost and its consequence.
+    validations:
+      required: true
+
+  - type: textarea
+    id: recommendation
+    attributes:
+      label: Recommendation
+      description: The option you would pick, and why.
+    validations:
+      required: true
+
+  - type: textarea
+    id: blocks
+    attributes:
+      label: What this blocks
+      description: Issues that cannot start until this is decided.
+      placeholder: Blocks #12
+    validations:
+      required: false

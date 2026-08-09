@@ -1,16 +1,11 @@
 package router
 
-import (
-	"github.com/driif/go-vibe-starter/internal/api/handlers"
-	"github.com/driif/go-vibe-starter/internal/server"
-	"github.com/driif/go-vibe-starter/internal/server/auth"
-	"github.com/go-chi/chi/v5"
-)
+import "github.com/driif/go-vibe-starter/internal/server"
 
+// RegisterHandlersV1 mounts every domain on the server router. Each domain owns
+// one routes_*.go file, so adding a domain never edits a shared file.
 func RegisterHandlersV1(s *server.Server) {
-	s.Router.Group(func(r chi.Router) {
-		r.Use(auth.Authenticate(s.Auth, auth.Options{}))
-		r.Get("/v1/users/me", handlers.GetMe)
-		r.With(auth.RequireRealmRoles(false, "admin")).Get("/v1/users", handlers.ListUsers(s))
-	})
+	registerHealth(s)
+	registerUsers(s)
+	registerNotes(s)
 }

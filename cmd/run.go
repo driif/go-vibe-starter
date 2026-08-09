@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
@@ -26,7 +27,10 @@ var serverCmd = &cobra.Command{
 Requires configuration through ENV and
 a fully migrated PostgreSQL database.`,
 	Run: func(cmd *cobra.Command, args []string) {
-		runServer()
+		if err := runServer(); err != nil {
+			slog.Error("Server stopped", "error", err)
+			os.Exit(1)
+		}
 	},
 }
 
@@ -35,50 +39,65 @@ func init() {
 	rootCmd.AddCommand(serverCmd)
 }
 
-func runServer() {
+// runServer boots the server and blocks until a shutdown signal or a fatal
+// listener error. It returns instead of exiting so every deferred cleanup runs.
+func runServer() error {
 	cfg := config.DefaultServiceConfigFromEnv()
 	logHandler := slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo})
 	slog.SetDefault(slog.New(logHandler))
+
+	if err := cfg.Validate(); err != nil {
+		return fmt.Errorf("invalid configuration: %w", err)
+	}
 
 	slog.Info(
 		"Starting server",
 		"environment", cfg.Environment,
 		"port", cfg.Server.ListenAddr,
+		"auth_provider", cfg.Auth.Provider,
 	)
 
-	s := server.NewWithConfig(cfg)
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-	if err := s.InitDB(ctx); err != nil {
-		slog.Error("Failed to initialize database", "error", err)
-		os.Exit(1)
+	s, err := server.NewWithConfig(cfg)
+	if err != nil {
+		return fmt.Errorf("create server: %w", err)
+	}
+
+	initCtx, cancelInit := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancelInit()
+	if err := s.InitDB(initCtx); err != nil {
+		return fmt.Errorf("initialize database: %w", err)
 	}
 	if err := s.Initialize(); err != nil {
-		slog.Error("Failed to initialize server", "error", err)
-		os.Exit(1)
+		return fmt.Errorf("initialize server: %w", err)
 	}
 	router.RegisterHandlersV1(s)
 
+	serveErr := make(chan error, 1)
 	go func() {
-		if err := s.Start(); err != nil {
-			if errors.Is(err, http.ErrServerClosed) {
-				slog.Info("Server closed")
-			} else {
-				slog.Error("Failed to start server", "error", err)
-				os.Exit(1)
-			}
+		if err := s.Start(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			serveErr <- err
 		}
+		close(serveErr)
 	}()
 
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, os.Interrupt, syscall.SIGTERM)
-	<-quit
 
-	ctx, cancel = context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-
-	if err := s.Shutdown(ctx); err != nil && !errors.Is(err, http.ErrServerClosed) {
-		slog.Error("Failed to gracefully shut down server", "error", err)
-		os.Exit(1)
+	select {
+	case err := <-serveErr:
+		if err != nil {
+			return fmt.Errorf("start server: %w", err)
+		}
+		slog.Info("Server closed")
+		return nil
+	case <-quit:
 	}
+
+	shutdownCtx, cancelShutdown := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancelShutdown()
+
+	if err := s.Shutdown(shutdownCtx); err != nil && !errors.Is(err, http.ErrServerClosed) {
+		return fmt.Errorf("graceful shutdown: %w", err)
+	}
+	return nil
 }

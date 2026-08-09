@@ -1,0 +1,76 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+# keep these in step with the pins in the Makefile
+env:
+  GO_VERSION: "1.25"
+  SQLC_VERSION: v1.30.0
+  OAPI_CODEGEN_VERSION: v2.6.0
+  GOLANGCI_LINT_VERSION: v2.12.2
+
+jobs:
+  build:
+    name: build, lint, test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      - name: build
+        run: go build ./...
+
+      - name: gofmt
+        run: |
+          unformatted=$(gofmt -l .)
+          if [ -n "$unformatted" ]; then
+            echo "these files are not gofmt-clean:"
+            echo "$unformatted"
+            exit 1
+          fi
+
+      - name: lint
+        uses: golangci/golangci-lint-action@v8
+        with:
+          version: ${{ env.GOLANGCI_LINT_VERSION }}
+
+      # docker is available on the runner, so testcontainers-based tests run as-is
+      - name: test
+        run: go test -race -coverprofile=profile.cov ./...
+
+  codegen-drift:
+    name: codegen drift
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      - name: install codegen tools
+        run: |
+          go install github.com/sqlc-dev/sqlc/cmd/sqlc@${SQLC_VERSION}
+          go install github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@${OAPI_CODEGEN_VERSION}
+
+      - name: regenerate
+        run: make gen
+
+      - name: fail on stale generated code
+        run: |
+          if [ -n "$(git status --porcelain)" ]; then
+            echo "generated code is stale - run 'make gen' and commit the result"
+            git status --porcelain
+            git diff
+            exit 1
+          fi

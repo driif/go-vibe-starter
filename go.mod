@@ -6,6 +6,8 @@ require (
 	github.com/getkin/kin-openapi v0.134.0
 	github.com/go-chi/chi/v5 v5.2.4
 	github.com/go-chi/cors v1.2.2
+	github.com/go-pkgz/rest v1.23.2
+	github.com/google/uuid v1.6.0
 	github.com/lib/pq v1.12.0
 	github.com/oapi-codegen/runtime v1.3.1
 	github.com/pressly/goose/v3 v3.27.0
@@ -39,7 +41,6 @@ require (
 	github.com/go-ole/go-ole v1.2.6 // indirect
 	github.com/go-openapi/jsonpointer v0.21.0 // indirect
 	github.com/go-openapi/swag v0.23.0 // indirect
-	github.com/google/uuid v1.6.0 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/josharian/intern v1.0.0 // indirect
 	github.com/klauspost/compress v1.18.4 // indirect

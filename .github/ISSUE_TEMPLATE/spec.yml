@@ -1,0 +1,36 @@
+name: Spec
+description: The what and why of a change, before it is broken into tickets
+title: "[spec] "
+labels: [spec]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What hurts today, and why it is worth fixing now.
+    validations:
+      required: true
+
+  - type: textarea
+    id: outcome
+    attributes:
+      label: Desired outcome
+      description: What is true once this ships. Observable behaviour, not implementation.
+    validations:
+      required: true
+
+  - type: textarea
+    id: out-of-scope
+    attributes:
+      label: Out of scope
+      description: Boundaries. What this spec deliberately does not cover.
+    validations:
+      required: true
+
+  - type: textarea
+    id: open-questions
+    attributes:
+      label: Open questions
+      description: Anything still undecided. Link `decision` issues where they exist.
+    validations:
+      required: false

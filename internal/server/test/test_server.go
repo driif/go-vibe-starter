@@ -18,7 +18,10 @@ func E2e(t *testing.T, closure func(s *server.Server)) {
 	testDB := NewDBInstance(t, conf)
 	testDB.ApplyFixtures(t)
 
-	s := server.NewWithConfig(conf)
+	s, err := server.NewWithConfig(conf)
+	if err != nil {
+		t.Fatalf("failed to create server: %v", err)
+	}
 	s.DB = testDB.DB
 
 	if err := s.Initialize(); err != nil {

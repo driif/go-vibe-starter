@@ -1,132 +1,193 @@
 # AGENTS.md — go-vibe-starter
 
-The single source of guidance for any AI agent (Claude Code, Codex, Pi, opencode) working in this
-repo. Read this before making changes. `CLAUDE.md` points here.
-
-For the detailed directory map, see [`docs/agents/README.md`](./docs/agents/README.md).
+The single source of truth for any AI agent working in this repo (Claude Code, Codex, Pi, opencode).
+Read it before making changes. `CLAUDE.md` imports it.
 
 ---
 
-## 1. Project & tech stack
+## 1. Hard constraints
 
-Production-ready Go web server foundation for rapid prototyping. Explicit, understandable
-infrastructure with minimal boilerplate; LLM-first (SQL over ORMs, explicit over magic).
+- **Never add AI co-authorship to commits, PRs, or issues** — no `Co-Authored-By: Claude …`, no
+  `🤖 Generated with …`, no mention of Claude, Anthropic, or AI assistance anywhere in a commit
+  message, PR body, or issue body.
+- **Never hand-edit generated files** — `internal/api/*.gen.go` (from `oapi/openapi.yaml`) and
+  `internal/db/gen/*.go` (from `sql/queries/*.sql`). Change the source, run `make gen`.
+- **Run migrations through the CLI** — `make migrate-up`, never ad-hoc SQL against the database.
+- **Write minimal code** — the simplest thing that works. No premature abstractions, no speculative
+  features, no config knobs nobody asked for.
+- **Comment sparingly** — see [`docs/agents/go-style.md`](docs/agents/go-style.md). A comment per
+  change is a defect, not thoroughness.
+- **Ask before implementing** when requirements are unclear or several approaches are reasonable.
+- **Validate before claiming done** — `make test` and `make lint` both green.
 
-- **Language:** Go 1.25
-- **CLI:** cobra (`cmd/`)
-- **HTTP router:** chi v5 (`internal/api`, `internal/server`)
-- **Auth:** Keycloak / OIDC / JWT (`pkg/keycloak`, `internal/server/auth`)
-- **Database:** PostgreSQL (`pkg/db`)
-- **Migrations:** goose (`migrations/`)
-- **Queries:** sqlc (`sql/queries/` → `internal/db/gen`) — SQL over ORM
-- **API:** OpenAPI-first via oapi-codegen (`oapi/openapi.yaml` → `make gen-oapi`)
-- **Logging:** `log/slog`
-- **Tests:** stdlib `testing` + `stretchr/testify`
+## 2. Tech stack
 
-## 2. Core principles
+Production-ready Go web server for rapid prototyping. Explicit, understandable infrastructure with
+minimal boilerplate; LLM-first (SQL over ORMs, explicit over magic).
 
-Write **minimal, pragmatic** code that solves the problem at hand — the simplest thing that works
-correctly. Add complexity only when explicitly needed. Favor straightforward over clever. Ask when
-requirements are unclear rather than over-engineering.
+Go 1.25 | chi v5 | sqlc | oapi-codegen (chi-server) | goose | Cobra CLI | Keycloak OIDC (optional) |
+`log/slog` JSON | PostgreSQL | testify + testcontainers-go | go-pkgz/rest
 
-## 3. Go conventions
+## 3. Entry points
 
-- **Logging:** `log/slog`, structured. Never `fmt.Println` or a third-party logger.
-- **HTTP:** chi v5; middleware are `func(http.Handler) http.Handler`. No other HTTP framework.
-- **Handlers:** in `internal/api/handlers`; write errors with `errs.Write(w, status, err)`; read
-  path params via `chi.URLParam`. Register routes in `internal/api/router/routes.go` with the
-  correct auth middleware.
-- **Interfaces:** define them in the **consumer** package, not the producer. Keep them small (1–3
-  methods). Don't create an interface for a single implementation.
-- **Control flow:** return early to avoid deep nesting; validate inputs at the top.
-- **Errors:** check immediately and return. Wrap with `fmt.Errorf("...: %w", err)` only when the
-  context helps debugging — don't stack wrapping layers.
-- **Comments:** lowercase in-code comments; document exported identifiers. **No history/changelog
-  comments** ("now uses X", "previously Y") — describe current state only.
-- **Tests:** table-driven with descriptive case names; `require` for fatal assertions, `assert`
-  for non-fatal; one test file per source file; `httptest` for handlers; `go test -race ./...`.
-- **Database:** SQL over ORM. Schema via goose migrations; queries via sqlc (parameterized, never
-  string-concatenated). Never hand-edit `*.gen.go`.
-- **Config:** all configuration via environment variables (`internal/server/config/env`).
-- **Commits/PRs:** no commit trailers or "Generated with…" lines; no "Test plan" sections in PRs.
+| Purpose | Path |
+|---|---|
+| CLI → server startup | `main.go` → `cmd/root.go` → `cmd/run.go` |
+| Server bootstrap + middleware stack | `internal/server/server.go` |
+| Env-driven config | `internal/server/config/server_config.go` |
+| Auth config + startup validation | `internal/server/config/auth_config.go` |
+| Route hub (one file per domain) | `internal/api/router/routes.go` |
+| Auth middleware + role guards | `internal/server/auth/auth.go` |
+| Error response shape | `internal/server/errs/error.go` |
+| OpenAPI spec | `oapi/openapi.yaml` |
+| Test helpers | `internal/server/test/` |
+| **Worked example of a feature** | the `notes` slice — see §8 |
 
-## 4. Configuration
+## 4. Code generation
 
-All config is via environment variables. Core set (full list:
-[`docs/agents/env-reference.md`](./docs/agents/env-reference.md)):
-
-| Variable | Default | Description |
-|---|---|---|
-| `APP_ENVIRONMENT` | `development` | Environment name |
-| `SERVICE_PORT` | `:9880` | HTTP server port |
-| `KEYCLOAK_URL` | `http://localhost:8080` | Keycloak base URL |
-| `KEYCLOAK_REALM` | `myrealm` | Keycloak realm |
-| `KEYCLOAK_CLIENT_ID` | `myclient` | Keycloak client ID |
-
-Endpoints: REST API `http://localhost:9880`, Keycloak `http://localhost:8080`.
+| Edited | Run |
+|---|---|
+| `oapi/openapi.yaml` | `make gen-oapi` |
+| `sql/queries/*.sql` | `make sqlc` |
+| `migrations/*.sql` | nothing — goose applies it via `make migrate-up` |
+| `.claude/skills/**` | `make sync-skills` |
 
 ## 5. Commands
 
 ```
-make build        # build bin/app
-make run          # build and run the server
+make help         # list every target
+make init         # bootstrap a new project from this template
+make build / run  # compile to bin/app / build and start
 make test         # go test -race ./...
+make cover        # coverage profile + summary
 make lint         # golangci-lint run
-make gen-oapi     # regenerate OpenAPI types + chi server
-make sqlc         # sqlc generate (needs queries in sql/queries)
+make fmt          # gofmt + goimports
+make gen          # gen-oapi + sqlc
+make migrate-up   # apply pending migrations
+make db-up/db-down# docker compose up -d / down
+make labels       # create the GitHub issue labels the skills use
 make sync-skills  # mirror .claude/skills -> agents/skills
+make tools        # install the pinned codegen and lint tools
 ```
 
-## 6. Development workflow
+## 6. Configuration
 
-The local skills encode one lifecycle. Use the skill that matches the phase:
+Environment variables only, no config files. `.env.local` is loaded outside tests.
+Every variable with its default: [`.env.example`](.env.example) and
+[`docs/agents/env-reference.md`](docs/agents/env-reference.md) — keep both in sync when you add one.
+
+The non-obvious one:
+
+- **`AUTH_PROVIDER`** (default `none`) — `none` skips token verification and runs every request as a
+  static dev principal (`AUTH_DEV_SUBJECT`, `AUTH_DEV_ROLES`), so a fresh clone boots with no
+  external dependencies. `keycloak` verifies bearer tokens against the realm's JWKS. Startup
+  **fails** if `AUTH_PROVIDER=none` is combined with `APP_ENVIRONMENT=production`.
+
+Handlers reach the caller the same way under both providers:
+`auth.PrincipalFromContext(r.Context())`. `auth.TokenFromContext` only returns a token under
+`keycloak`. The middleware itself comes from `s.Authenticator()`.
+
+## 7. Go conventions
+
+The short version — the depth is in [`docs/agents/go-style.md`](docs/agents/go-style.md).
+
+- **Logging:** `log/slog`, structured, `snake_case` keys. Never `fmt.Println`.
+- **HTTP:** chi v5; middleware are `func(http.Handler) http.Handler`.
+- **Handlers:** in `internal/api/handlers`; errors via `errs.Write(w, status, err)`; path params via
+  `chi.URLParam`; routes registered in `internal/api/router/routes_<domain>.go`.
+- **Interfaces:** defined in the **consumer** package, 1–3 methods, never for a single
+  implementation with no test double.
+- **Control flow:** return early; validate at the top.
+- **Errors:** check immediately, wrap with `%w` only where the context helps debugging.
+- **Comments:** lowercase in-code, godoc on exported identifiers, no history comments.
+- **Tests:** table-driven, testify `require`/`assert`, one `_test.go` per source file, `t.Helper()`,
+  `go test -race`.
+- **Database:** parameterized SQL, scoped by owner in the query itself.
+- **Commits/PRs:** no trailers, no "Generated with" lines, no "Test plan" sections.
+
+## 8. The worked example
+
+`notes` is a complete reference vertical slice, marked `// DEMO:` in every file and removed by
+`make init`. When building a feature, copy its shape:
 
 ```
-UNDERSTAND ──▶ PLAN ─────────▶ IMPLEMENT ─────▶ REVIEW ─────────▶ (DEBUG) ─▶ FINISH
- grilling      make-plan       execute-plan     code-review        diagnose-  handoff
- grill-with-   wayfinder       + tdd            (verify-then-fix)   bug
- docs          (big work)
+migrations/0001_notes.sql          schema
+sql/queries/notes.sql              queries      -> internal/db/gen (generated)
+oapi/openapi.yaml                  API surface  -> internal/api/*.gen.go (generated)
+internal/api/handlers/notes.go     handler
+internal/api/handlers/notes_test.go tests
+internal/api/router/routes_notes.go route registration
 ```
 
-- Building something new? Start with `grilling` / `grill-with-docs`, then `make-plan`.
-- Work too big for one session? `wayfinder` first (a decision map), then `make-plan` per piece.
-- Executing a plan file? `execute-plan` (one task per pass) with `tdd`.
-- Reviewing changes? `code-review`. A bug or failing test? `diagnose-bug`.
-- (Claude only) exploratory design brainstorming and creating/editing skills are handled by the
-  environment's `superpowers:brainstorming` and `skill-creator` — not duplicated here.
+The `go-feature` skill walks this path step by step.
 
-## 7. Skill index
+## 9. Development workflow
 
-Canonical skills live in `.claude/skills/` (Claude Code discovers them automatically). Other tools
+Two substrates, one bridge:
+
+- **GitHub Issues hold intent** — `spec` (what and why), `ticket` (one tracer-bullet slice),
+  `decision` (an open question), `bug`. Blocking edges are `Blocked by #N` lines in the issue body.
+  Triage labels: `needs-info`, `needs-grilling`, `ready`, `blocked`, `wontfix`. `make labels`
+  creates all of them.
+- **`docs/plans/*.md` holds execution** — one ralphex-format plan file, run unattended by the
+  `ralphex` binary, archived to `docs/plans/completed/`. Disposable.
+
+```
+loose idea ─▶ /grill-me ─▶ /to-spec ─▶ /to-tickets ─┬─▶ /implement            (interactive)
+                                                     └─▶ /to-plan + ralphex   (unattended)
+```
+
+On-ramps: a bug arrives → `diagnosing-bugs`. Work too big to hold in one session → `/wayfinder`.
+A repo just created from the template → `/setup-project`. Not sure → `/vibe`.
+
+## 10. Skill index
+
+Canonical skills live in `.claude/skills/`; Claude Code discovers them automatically. Other tools
 read the identical mirror at `agents/skills/<name>/SKILL.md`.
 
-| Skill | When to use |
+**Invoke by name** (these carry no description the agent can see, so nothing but you reaches them):
+
+| Skill | When to reach for it |
 |---|---|
-| `grilling` | Stress-test a plan/decision/idea; relentless one-question-at-a-time interview |
-| `grill-with-docs` | Sharpen a design and record decisions as ADRs (`docs/adr/`) + glossary |
-| `wayfinder` | Plan work too large for one session as a local decision map (`docs/plans/maps/`) |
-| `make-plan` | Turn a spec/change into an approved ralphex-format plan (`docs/plans/`) |
-| `execute-plan` | Drive a plan file one task per pass: implement → test → validate → commit |
-| `tdd` | Red-green-refactor with this repo's Go test conventions |
-| `code-review` | Multi-reviewer review, verify every finding at file:line, fix confirmed |
-| `diagnose-bug` | Reproduce → minimize → hypothesize → instrument → fix → verify |
-| `writing-style` | Strip AI-speak from commits/PRs/review comments |
-| `handoff` | Compact handoff doc for continuation |
-| `add-middleware` | Scaffold a chi middleware in `internal/server/middleware` |
-| `add-endpoint` | OpenAPI-first endpoint: spec → `make gen-oapi` → handler → route |
-| `add-migration` | Scaffold a goose migration in `migrations/` |
-| `add-sqlc-query` | Write SQL in `sql/queries/` → `make sqlc` → typed code |
+| `/vibe` | The map — which skill fits this situation |
+| `/setup-project` | Once, in a repo created from this template |
+| `/grill-me` | Sharpen a plan or design before any code is written |
+| `/grill-with-docs` | Same, and leave `CONTEXT.md` terms and ADRs behind |
+| `/to-spec` | Turn what the conversation settled into a spec issue |
+| `/to-tickets` | Break a spec into tracer-bullet ticket issues |
+| `/to-plan` | Turn tickets into a ralphex plan file under `docs/plans/` |
+| `/implement` | Build one ticket end to end with you in the loop, then close it |
+| `/triage` | Move issues through the label state machine |
+| `/wayfinder` | Chart work too big for one session as `decision` issues |
+| `/improve-architecture` | Rank deepening opportunities, then grill the one you pick |
+| `/handoff` | Compact this session into a handoff another can start from |
 
-## 8. Review engine
+**Fire on their own** (the agent reaches for these when the task fits):
 
-`code-review` runs Go reviewers (`.claude/skills/code-review/reviewers/*.md`) — as read-only
-parallel subagents on Claude (`.claude/agents/go-*.md`), or sequentially elsewhere. Two modes:
-**comprehensive** (all 6: quality, smells, simplification, testing, implementation, documentation)
-and **critical-only** (quality + implementation). Every finding is **verified at file:line**
-(CONFIRMED / FALSE POSITIVE) before any fix. Severity **critical/major/minor**; over-engineering
-effort **trivial/small/medium/large**.
+| Skill | Covers |
+|---|---|
+| `go-feature` | The vertical slice: migration → sqlc → OpenAPI → handler → route → test |
+| `go-middleware` | Adding or changing a chi middleware |
+| `tdd` | Go tests, test-first, and what makes one worth keeping |
+| `code-review` | Two-axis review (standards, spec) over the six Go reviewers |
+| `diagnosing-bugs` | Reproduce → minimize → hypothesize → instrument → fix → verify |
+| `grilling` | The interview primitive the grill skills run on |
+| `domain-modeling` | `CONTEXT.md` terms and ADRs |
+| `codebase-design` | Deep modules, seams, interface depth in Go terms |
+| `research` | Questions answered against primary sources, cited |
+| `resolving-merge-conflicts` | A merge or rebase stopped on conflicts |
+| `writing-style` | Commit messages, PR bodies, issue bodies, review comments |
+| `writing-for-agents` | Writing or editing a skill, `AGENTS.md`, or a doc a skill points at |
 
-## 9. Editing skills
+## 11. Review engine
 
-Edit skills in **`.claude/skills/` only**, then run `make sync-skills` to regenerate the
-`agents/skills/` mirror. Never hand-edit `agents/skills/`.
+`code-review` runs the six Go reviewers in `.claude/skills/code-review/reviewers/` — as read-only
+parallel subagents on Claude Code (`.claude/agents/go-*.md`), sequentially elsewhere. Two modes:
+**comprehensive** (quality, implementation, testing, simplification, documentation, smells) and
+**critical-only** (quality + implementation). Every finding is **verified at `file:line`** and
+marked CONFIRMED or FALSE POSITIVE before anything is fixed. Severity: critical / major / minor.
+
+## 12. Editing skills
+
+Edit `.claude/skills/` only, then run `make sync-skills` to regenerate the `agents/skills/` mirror.
+Never hand-edit the mirror. The `writing-for-agents` skill covers how to write one.
