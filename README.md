@@ -77,24 +77,42 @@ All config is via environment variables. See the full reference:
 ### Available make targets
 
 ```bash
-make build    # compile to bin/app
-make run      # build + run
-make clean    # remove bin/
+make build        # compile to bin/app
+make run          # build + run
+make clean        # remove bin/
+make test         # go test -race ./...
+make lint         # golangci-lint run
+make gen-oapi     # regenerate OpenAPI types + chi server
+make sqlc         # sqlc generate (needs queries in sql/queries)
+make sync-skills  # mirror .claude/skills -> agents/skills
 ```
 
 ---
 
-## For LLM agents (Claude Code)
+## Skills & AI workflow
 
-Context files for AI-assisted development are in [`docs/agents/`](docs/agents/):
+All agent guidance lives in **[`AGENTS.md`](AGENTS.md)** — tech stack, Go conventions,
+configuration, the development workflow, and the skill index. `CLAUDE.md` points there.
+Detailed reference docs remain in [`docs/agents/`](docs/agents/) (orientation, middleware API,
+env reference).
 
-- [`docs/agents/README.md`](docs/agents/README.md) — project orientation, rules, patterns
-- [`docs/agents/middleware-api.md`](docs/agents/middleware-api.md) — typed middleware API reference
-- [`docs/agents/env-reference.md`](docs/agents/env-reference.md) — complete env var table
+The repo ships a local skills pack encoding one lifecycle:
 
-Custom slash commands are in `.claude/commands/`:
-- `/add-route` — scaffold a new chi route handler
-- `/add-middleware` — scaffold a new middleware
+```
+UNDERSTAND → PLAN → IMPLEMENT → REVIEW → (DEBUG) → FINISH
+ grilling     make-  execute-    code-      diagnose-  handoff
+ grill-with-  plan   plan + tdd  review     bug
+ docs         wayfinder
+```
+
+Plus Go scaffolding skills (`add-endpoint`, `add-middleware`, `add-migration`, `add-sqlc-query`)
+and six read-only review subagents. Skills are portable across Claude Code, Codex, Pi, and
+opencode.
+
+- **Canonical location:** `.claude/skills/` (Claude Code discovers these automatically).
+- **Tool-neutral mirror:** `agents/skills/` (for Codex / Pi / opencode).
+- **Editing rule:** edit `.claude/skills/` only, then run `make sync-skills`; never hand-edit
+  `agents/skills/`.
 
 ---
 
