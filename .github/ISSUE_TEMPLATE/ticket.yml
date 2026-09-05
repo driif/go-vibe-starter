@@ -1,0 +1,42 @@
+name: Ticket
+description: One tracer-bullet slice of a spec
+title: "[ticket] "
+labels: [ticket]
+body:
+  - type: textarea
+    id: delivers
+    attributes:
+      label: What this slice delivers
+      description: The thinnest end-to-end change that is worth merging on its own.
+    validations:
+      required: true
+
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: Checkable statements. Done means all of them hold.
+      value: |
+        - [ ]
+    validations:
+      required: true
+
+  - type: textarea
+    id: blocked-by
+    attributes:
+      label: Blocked by
+      description: One `Blocked by #N` line per blocking issue. Leave empty if nothing blocks it.
+      placeholder: Blocked by #12
+    validations:
+      required: false
+
+  - type: textarea
+    id: validation
+    attributes:
+      label: Validation commands
+      description: The exact commands that prove this slice works.
+      value: |
+        make test
+        make lint
+    validations:
+      required: true

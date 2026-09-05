@@ -1,8 +1,9 @@
-Test binary, built with `go test -c`
+# test binary, built with `go test -c`
 *.test
 
 # Output of the go coverage tool, specifically when used with LiteIDE
 *.out
+profile.cov
 
 # Dependency directories (remove the comment below to include it)
 # vendor/
@@ -38,5 +39,6 @@ __debug_bin
 # this file is used for local testing (secrets!) but should never be commited into git
 .env
 
-# ralphex progress logs
+# ralphex progress logs and per-run worktrees
 .ralphex/progress/
+.ralphex/worktrees/

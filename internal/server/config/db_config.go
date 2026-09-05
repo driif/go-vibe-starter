@@ -24,7 +24,7 @@ type Database struct {
 	Host             string
 	Port             int
 	Username         string
-	Password         string            `json:"-"`          // sensitive
+	Password         string `json:"-"` // sensitive
 	Database         string
 	AdditionalParams map[string]string `json:",omitempty"` // Optional additional connection parameters mapped into the connection string
 	MaxOpenConns     int

@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/driif/go-vibe-starter/internal/server/auth"
 	"github.com/driif/go-vibe-starter/internal/server/config"
 	srvmiddleware "github.com/driif/go-vibe-starter/internal/server/middleware"
 	"github.com/driif/go-vibe-starter/pkg/keycloak"
@@ -19,42 +20,47 @@ import (
 	"github.com/go-chi/cors"
 )
 
+// Server owns the HTTP listener and the dependencies handlers reach through.
 type Server struct {
-	server        *http.Server
-	Router        chi.Router
-	Config        config.App
-	DB            *sql.DB
+	server *http.Server
+	Router chi.Router
+	Config config.App
+	DB     *sql.DB
+	// Auth is nil when Config.Auth.Provider is config.AuthProviderNone.
 	Auth          *keycloak.Verifier
 	KeycloakAdmin *keycloak.AdminClient
-	//Mailer *mailer.Mailer
-	//Push   *push.Service
 }
 
-func NewWithConfig(config config.App) *Server {
-	authVerifier, err := keycloak.New(keycloak.Config{
-		IssuerURL:   config.Keycloak.IssuerURL,
-		Audience:    config.Keycloak.Audience,
-		HTTPTimeout: config.Keycloak.HTTPTimeout,
-		ClockSkew:   config.Keycloak.ClockSkew,
-	})
-	if err != nil {
-		panic(err)
+// NewWithConfig builds a server from config. Call config.App.Validate first:
+// this constructor assumes the auth provider is one of the accepted values.
+func NewWithConfig(cfg config.App) (*Server, error) {
+	s := &Server{Config: cfg}
+
+	if cfg.Auth.Provider == config.AuthProviderNone {
+		slog.Warn("auth disabled — all requests run as the dev principal",
+			"subject", cfg.Auth.DevSubject,
+			"realm_roles", cfg.Auth.DevRoles,
+		)
+	} else {
+		verifier, err := keycloak.New(keycloak.Config{
+			IssuerURL:   cfg.Keycloak.IssuerURL,
+			Audience:    cfg.Keycloak.Audience,
+			HTTPTimeout: cfg.Keycloak.HTTPTimeout,
+			ClockSkew:   cfg.Keycloak.ClockSkew,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("keycloak verifier: %w", err)
+		}
+		s.Auth = verifier
 	}
 
-	s := &Server{
-		Config: config,
-		Router: nil,
-		DB:     nil,
-		Auth:   authVerifier,
-	}
-
-	if config.KeycloakAdmin.ClientID != "" {
+	if cfg.KeycloakAdmin.ClientID != "" {
 		adminClient, err := keycloak.NewAdminClient(keycloak.AdminConfig{
-			BaseURL:      config.KeycloakAdmin.BaseURL,
-			Realm:        config.KeycloakAdmin.Realm,
-			ClientID:     config.KeycloakAdmin.ClientID,
-			ClientSecret: config.KeycloakAdmin.ClientSecret,
-			HTTPTimeout:  config.Keycloak.HTTPTimeout,
+			BaseURL:      cfg.KeycloakAdmin.BaseURL,
+			Realm:        cfg.KeycloakAdmin.Realm,
+			ClientID:     cfg.KeycloakAdmin.ClientID,
+			ClientSecret: cfg.KeycloakAdmin.ClientSecret,
+			HTTPTimeout:  cfg.Keycloak.HTTPTimeout,
 		})
 		if err != nil {
 			slog.Warn("keycloak admin client not initialized", "error", err)
@@ -63,7 +69,16 @@ func NewWithConfig(config config.App) *Server {
 		}
 	}
 
-	return s
+	return s, nil
+}
+
+// Authenticator returns the middleware that puts the caller's principal in the
+// request context: token verification for keycloak, a static principal for none.
+func (s *Server) Authenticator() func(http.Handler) http.Handler {
+	if s.Config.Auth.Provider == config.AuthProviderNone {
+		return auth.DevPrincipal(s.Config.Auth.DevSubject, s.Config.Auth.DevRoles)
+	}
+	return auth.Authenticate(s.Auth, auth.Options{})
 }
 
 func (s *Server) Ready() bool {
@@ -83,7 +98,7 @@ func (s *Server) InitDB(ctx context.Context) error {
 		db.SetMaxIdleConns(s.Config.Database.MaxIdleConns)
 	}
 	if s.Config.Database.ConnMaxLifetime > 0 {
-		db.SetConnMaxLifetime(time.Duration(s.Config.Database.ConnMaxLifetime) * time.Second)
+		db.SetConnMaxLifetime(s.Config.Database.ConnMaxLifetime)
 	}
 
 	if err := db.PingContext(ctx); err != nil {

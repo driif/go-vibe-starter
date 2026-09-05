@@ -4,6 +4,8 @@
 package api
 
 import (
+	"time"
+
 	openapi_types "github.com/oapi-codegen/runtime/types"
 )
 
@@ -11,11 +13,26 @@ const (
 	BearerAuthScopes = "bearerAuth.Scopes"
 )
 
+// CreateNoteRequest DEMO: reference vertical slice — delete with `make init` or by hand.
+type CreateNoteRequest struct {
+	Body  *string `json:"body,omitempty"`
+	Title string  `json:"title"`
+}
+
 // ErrorResponse Standard error response.
 type ErrorResponse struct {
 	Detail *string `json:"detail,omitempty"`
 	Status int     `json:"status"`
 	Title  string  `json:"title"`
+}
+
+// Note DEMO: reference vertical slice — delete with `make init` or by hand. A note belonging to one caller.
+type Note struct {
+	Body      string             `json:"body"`
+	CreatedAt time.Time          `json:"createdAt"`
+	Id        openapi_types.UUID `json:"id"`
+	Title     string             `json:"title"`
+	UpdatedAt time.Time          `json:"updatedAt"`
 }
 
 // UserResponse A user profile. Sourced from JWT claims (for /me) or Keycloak Admin API (for /users).
@@ -38,8 +55,14 @@ type UserResponse struct {
 // AdminNotConfigured Standard error response.
 type AdminNotConfigured = ErrorResponse
 
+// BadRequest Standard error response.
+type BadRequest = ErrorResponse
+
 // Forbidden Standard error response.
 type Forbidden = ErrorResponse
+
+// NotFound Standard error response.
+type NotFound = ErrorResponse
 
 // Unauthorized Standard error response.
 type Unauthorized = ErrorResponse
@@ -49,3 +72,6 @@ type ListUsersParams struct {
 	// Organization Filter users by Keycloak organization alias.
 	Organization *string `form:"organization,omitempty" json:"organization,omitempty"`
 }
+
+// CreateNoteJSONRequestBody defines body for CreateNote for application/json ContentType.
+type CreateNoteJSONRequestBody = CreateNoteRequest
