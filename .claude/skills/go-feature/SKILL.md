@@ -1,6 +1,6 @@
 ---
 name: go-feature
-description: Building business logic in this repo — the vertical slice from schema to HTTP. Use when adding or changing an endpoint, a migration, a sqlc query, a handler or a route, when a ticket says "add /v1/<thing>", or when a schema change has to reach the API.
+description: Builds business logic in this repo as a vertical slice from schema to HTTP. Use when adding or changing an endpoint, a migration, a sqlc query, a handler or a route, when a ticket asks for a new /v1 resource, or when a schema change has to reach the API.
 ---
 
 A feature here walks **the slice**: migration → sqlc query → OpenAPI → handler → route → test. The

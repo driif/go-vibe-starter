@@ -1,6 +1,6 @@
 ---
 name: writing-for-agents
-description: Writing documents an agent consumes in this repo. Use when creating or editing a skill under `.claude/skills/`, when editing `AGENTS.md` or `CLAUDE.md`, or when writing a reference doc a skill points at (`docs/agents/*`, a sibling `.md` file).
+description: Writes and edits documents an agent consumes in this repo. Use when creating or editing a skill under .claude/skills/, when editing AGENTS.md or CLAUDE.md, or when writing a reference doc a skill points at.
 ---
 
 Reference for any document an agent reads here: a skill, `AGENTS.md`, `CLAUDE.md`, a doc reached by a
@@ -93,6 +93,16 @@ Every step ends on a **completion criterion**, the condition telling the agent t
   finding verified at `file:line`" binds flat reference just as "every step done" binds a sequence.
 
 The strongest criteria are both checkable and exhaustive.
+
+**Do not write a step that asks the agent to verify, re-check or double-check its own work.** It
+already does; a second instruction compounds with the behaviour and buys tokens, not quality. A
+completion criterion the agent can run (`make test` exits 0) is the whole of what a skill owes here.
+The exception is verification of something *another* agent produced — `code-review`'s `file:line`
+gate earns its place because the reviewer and the verifier are different contexts.
+
+**Do not cap what a reviewing or reporting step may surface.** "Report only critical issues" is read
+literally and returns fewer findings, not a filtered set of the same findings. Ask for everything,
+then filter in a later step that has the whole list in front of it.
 
 ## When to split
 

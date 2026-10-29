@@ -1,6 +1,6 @@
 ---
 name: domain-modeling
-description: Build and sharpen this project's domain model. Use when pinning down domain terminology or a ubiquitous language, when a decision is worth recording as an ADR, when `CONTEXT.md` disagrees with the code, or when another skill needs the domain model maintained as it works.
+description: Builds and sharpens this project's domain model in CONTEXT.md and ADRs. Use when pinning down domain terminology or a ubiquitous language, when a decision is worth recording as an ADR, when CONTEXT.md disagrees with the code, or when another skill needs the domain model maintained as it works.
 ---
 
 The *active* discipline: challenge terms, invent edge-case scenarios, and write the result down the

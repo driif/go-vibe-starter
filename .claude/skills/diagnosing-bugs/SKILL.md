@@ -1,6 +1,6 @@
 ---
 name: diagnosing-bugs
-description: Working a bug down to its cause before changing anything. Use when something is broken, throwing, hanging, flaking or slow, when a test fails, when an issue carries the `bug` label, or when the user says "debug this" or "why is this failing".
+description: Works a bug down to its cause before anything is changed. Use when something is broken, throwing, hanging, flaking or slow, when a test fails, when an issue carries the bug label, or when the user says "debug this" or "why is this failing".
 ---
 
 Six phases in order: reproduce → minimize → hypothesize → instrument → fix → verify. The gate sits at

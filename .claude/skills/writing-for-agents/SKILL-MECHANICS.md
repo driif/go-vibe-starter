@@ -16,10 +16,26 @@ YAML between `---` fences at the top of `.claude/skills/<name>/SKILL.md`.
 
 Nothing else. A skill that needs more configuration is a skill trying to be a program.
 
+**Platform limits, enforced by the loader — a skill that breaks one silently fails to load or fails
+to be discovered:**
+
+- `name`: 64 characters max, `a-z`, `0-9` and `-` only. The words `claude` and `anthropic` are
+  reserved and rejected.
+- `description`: 1024 characters max, never empty, **no angle brackets** — a placeholder like
+  `/v1/<thing>` reads as an XML tag. Write `a new /v1 resource` instead.
+- Write the description in the **third person, verb first**: "Builds business logic…", not "Building
+  business logic…" and never "I can help you…" or "You can use this to…". It is injected into the
+  system prompt, where a mixed point of view degrades selection.
+- `SKILL.md` body: 500 lines is the platform ceiling; this pack's own bar is ~120.
+- Reference files stay **one level from `SKILL.md`**. A file reached only through another reference
+  file gets partially read, so link every one of them from `SKILL.md` directly.
+- A reference file over 100 lines opens with a `## Contents` list, so a partial read still shows its
+  full scope.
+
 ```yaml
 ---
 name: go-feature
-description: Building a feature that touches the database or the HTTP API in this repo. Use when adding an endpoint, a migration, a sqlc query, or a handler, or when a ticket says "add /v1/<thing>".
+description: Builds business logic in this repo as a vertical slice from schema to HTTP. Use when adding or changing an endpoint, a migration, a sqlc query, a handler or a route, or when a ticket asks for a new /v1 resource.
 ---
 ```
 

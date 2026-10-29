@@ -1,6 +1,6 @@
 ---
 name: grilling
-description: The interview primitive — stress-test a plan, design or decision until nothing is silently assumed. Use when the user says "grill me" or "grill this", when a request is too fuzzy to implement, when an issue carries the `needs-grilling` label, or when another skill needs an interview before it can proceed.
+description: Interviews the user in rounds until a plan, design or decision has nothing silently assumed. Use when the user says "grill me" or "grill this", when a request is too fuzzy to implement, when an issue carries the needs-grilling label, or when another skill needs an interview before it can proceed.
 ---
 
 Interview the user relentlessly until you reach a shared understanding. Map the topic as a **design

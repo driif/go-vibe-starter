@@ -78,7 +78,7 @@ names the four), the shape of the deepened interface, what stays behind the seam
 survive. Keep the domain model current as decisions land by running `domain-modeling`:
 
 - A deepened module named after a concept `CONTEXT.md` does not carry → add the term.
-- The user rejects the opportunity for a reason a future scan would need in order to stop
+- The user rejects the opportunity for a reason a future scan would need to stop
   re-suggesting it → offer an ADR.
 - The user wants alternative interfaces explored → `codebase-design` and its design-it-twice
   reference.

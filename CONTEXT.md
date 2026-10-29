@@ -25,7 +25,7 @@ under both auth providers, so handlers never branch on which one is configured.
 
 **Auth provider** — what verifies a request. `none` injects a fixed dev principal so the server runs
 with no external dependencies; `keycloak` verifies bearer tokens against the realm's JWKS. Selected
-by `AUTH_PROVIDER`; refused in production when set to `none`.
+by `AUTH_PROVIDER`; `none` is refused unless `APP_ENVIRONMENT` is an explicitly non-deployed value.
 
 **Vertical slice** — one feature taken all the way through the stack: migration, query, API surface,
 handler, route, test. The unit of work a ticket describes and the `go-feature` skill builds. The

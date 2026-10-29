@@ -1,6 +1,6 @@
 ---
 name: tdd
-description: Writing Go tests in this repo, test-first. Use when implementing a ticket or fixing a bug, when a change needs a regression test, when asked for "red-green" or "write a test for X", or when judging whether an existing test is worth keeping.
+description: Writes Go tests in this repo test-first, red-green-refactor. Use when implementing a ticket or fixing a bug, when a change needs a regression test, when asked for "red-green" or "write a test for X", or when judging whether an existing test is worth keeping.
 ---
 
 `red-green` is the loop. This skill is what makes the tests it leaves behind worth keeping: what a

@@ -35,7 +35,7 @@ curl localhost:9880/ready    # 200 once the database answers
 
 `AUTH_PROVIDER` defaults to `none`, so a fresh clone boots with no identity provider and every
 request runs as a local dev principal. Set it to `keycloak` when you want real tokens. Starting in
-production with auth disabled is refused.
+a deployed environment with auth disabled is refused at startup.
 
 **Prerequisites:** Go 1.25+, Docker, and `make tools` for the pinned code generators.
 

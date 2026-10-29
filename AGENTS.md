@@ -81,7 +81,9 @@ The non-obvious one:
 - **`AUTH_PROVIDER`** (default `none`) — `none` skips token verification and runs every request as a
   static dev principal (`AUTH_DEV_SUBJECT`, `AUTH_DEV_ROLES`), so a fresh clone boots with no
   external dependencies. `keycloak` verifies bearer tokens against the realm's JWKS. Startup
-  **fails** if `AUTH_PROVIDER=none` is combined with `APP_ENVIRONMENT=production`.
+  **fails** unless `APP_ENVIRONMENT` is one of `development`, `dev`, `local`, `test`. The check is
+  an allow-list, so `prod`, `Production` or `staging` refuse to start rather than silently serving
+  every request as the dev principal.
 
 Handlers reach the caller the same way under both providers:
 `auth.PrincipalFromContext(r.Context())`. `auth.TokenFromContext` only returns a token under

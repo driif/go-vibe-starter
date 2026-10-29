@@ -1,6 +1,6 @@
 ---
 name: resolving-merge-conflicts
-description: Resolving an in-progress git merge, rebase or cherry-pick that stopped on conflicts. Use when `git status` reports `both modified` or unmerged paths, when a file carries `<<<<<<<` markers, or when the user says a merge or rebase is stuck.
+description: Resolves an in-progress git merge, rebase or cherry-pick that stopped on conflicts. Use when git status reports both modified or unmerged paths, when a file carries conflict markers, or when the user says a merge or rebase is stuck.
 ---
 
 Resolve by **intent**, hunk by hunk. Land the operation; the working tree never goes back to where it

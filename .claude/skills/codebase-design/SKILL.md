@@ -1,6 +1,6 @@
 ---
 name: codebase-design
-description: The deep-module vocabulary for Go design in this repo. Use when shaping a package's exported surface, deciding where a seam goes, judging whether a package is deep or shallow, making code testable through its interface, or when another skill needs these words.
+description: Supplies the deep-module vocabulary for Go design in this repo. Use when shaping a package's exported surface, deciding where a seam goes, judging whether a package is deep or shallow, making code testable through its interface, or when another skill needs these words.
 ---
 
 Design **deep modules**: substantial behaviour behind a small interface, sitting at a clean seam,

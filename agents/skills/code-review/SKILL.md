@@ -1,6 +1,6 @@
 ---
 name: code-review
-description: Reviewing Go changes in this repo before they land. Use when asked to review a branch, a PR, a diff or work in progress, when an implementation is finished and needs checking, or when another skill hands finished code back for review.
+description: Reviews Go changes in this repo before they land, on two axes, verifying every finding at file:line. Use when asked to review a branch, a PR, a diff or work in progress, when an implementation is finished and needs checking, or when another skill hands finished code back for review.
 ---
 
 Review runs on **two axes**, dispatched as read-only agents that never see each other's context, over
@@ -22,8 +22,12 @@ contexts stop one verdict from excusing the other.
 ## Modes
 
 - **Comprehensive** — all six briefs. The default, and what a branch gets before it lands.
-- **Critical-only** — `go-quality` and `go-implementation`, critical and major findings only. A fast
-  last pass over a change that has already been reviewed.
+- **Critical-only** — `go-quality` and `go-implementation` only. A fast last pass over a change that
+  has already been reviewed.
+
+Narrow a mode by dropping **briefs**, never by telling a reviewer to hold back. A reviewer told to
+report only severe findings finds fewer findings; one told to report everything and hand over the
+whole list still finds them all. Severity filtering happens at step 6, after the verdicts are in.
 
 ## Steps
 
@@ -57,6 +61,8 @@ contexts stop one verdict from excusing the other.
 6. **Report.** Two headings, `## Standards` and `## Spec`, each listing its confirmed findings worst
    severity first. Do not rerank across the axes — that merge is exactly what the split prevents.
    Close with the false positives, one line each, so the reader sees what was ruled out and why.
+   In critical-only mode, cut the list to `critical` and `major` **here** — the reviewers still
+   reported everything.
 7. **Fix, when the user asked for fixes.** Confirmed findings only, worst severity first. Rerun
    `make test` and `make lint` until both exit 0, and leave the result in the working tree. Then run
    the panel again: a fix is itself unreviewed code. You are done when a full pass raises nothing

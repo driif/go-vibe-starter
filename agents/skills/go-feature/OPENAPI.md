@@ -8,6 +8,12 @@ content** — keep writing JSON so the whole document stays one syntax.
 Worked example: the `/v1/notes` and `/v1/notes/{id}` paths with the `Note` and `CreateNoteRequest`
 schemas.
 
+## Contents
+- Where things go — paths, components, the JSON-in-`.yaml` rule
+- An operation — the full shape of one path plus its error statuses
+- Schemas and the Go types they produce — required vs optional, formats, pointers
+- Generating and using the output — `make gen-oapi` and what it emits
+
 ## Where things go
 
 - `paths` — one key per URL, then one key per method. Path parameters shared by every method on a

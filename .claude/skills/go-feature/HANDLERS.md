@@ -4,6 +4,11 @@ Handlers live in `internal/api/handlers/<domain>.go`, routes in
 `internal/api/router/routes_<domain>.go`. Worked example: `internal/api/handlers/notes.go` and
 `internal/api/router/routes_notes.go`.
 
+## Contents
+- Pick the shape — plain `HandlerFunc` vs a closure over `*server.Server`
+- Inside a handler — principal, decode, validate, query, respond, errors
+- Register the route — the per-domain file and the hub
+
 ## Pick the shape
 
 Three forms are in use; take the narrowest one that carries the dependencies the handler needs.

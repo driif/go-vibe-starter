@@ -1,6 +1,6 @@
 ---
 name: go-middleware
-description: Adding or changing a chi middleware in this repo. Use when a concern has to run on every request before the handler — rate limiting, tenant resolution, security or cache headers, request-scoped logging or context values — or when a ticket says "add middleware X".
+description: Adds or changes a chi middleware in this repo. Use when a concern has to run on every request before the handler - rate limiting, tenant resolution, security or cache headers, request-scoped logging or context values - or when a ticket asks for a new middleware.
 ---
 
 A middleware here is a `func(http.Handler) http.Handler` living in

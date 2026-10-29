@@ -1,6 +1,6 @@
 ---
 name: writing-style
-description: Prose that lands in the project's permanent record. Use when writing a commit message, a PR title or description, a GitHub issue body (`gh issue create`), or a code-review comment.
+description: Writes prose that lands in the project's permanent record. Use when writing a commit message, a PR title or description, a GitHub issue body, or a code-review comment.
 ---
 
 Governs what this repo records about its own work: commits, PRs, issues, review comments. Reference

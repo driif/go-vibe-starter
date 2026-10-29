@@ -15,7 +15,7 @@ process environment; it is skipped while tests run (`CI` set, or the binary ends
 
 | Env var | Go field | Type | Default | Description |
 |---|---|---|---|---|
-| `APP_ENVIRONMENT` | `App.Environment` | `string` | `development` | Environment name. `production` enables the strict startup checks below |
+| `APP_ENVIRONMENT` | `App.Environment` | `string` | `development` | Environment name. Anything outside `development`/`dev`/`local`/`test` is treated as deployed and enables the strict startup checks below |
 | `PROJECT_ROOT_DIR` | — | `string` | directory of the binary | Root used to locate `.env.local` and `migrations/` |
 
 ---
@@ -31,7 +31,8 @@ process environment; it is skipped while tests run (`CI` set, or the binary ends
 `App.Validate()` returns an error — it never panics — when:
 
 - `AUTH_PROVIDER` is anything other than `none` or `keycloak`.
-- `AUTH_PROVIDER=none` while `APP_ENVIRONMENT=production`.
+- `AUTH_PROVIDER=none` while `APP_ENVIRONMENT` is anything other than `development`, `dev`, `local`
+  or `test` (an allow-list, so a misspelled `prod` fails closed).
 
 The bootstrap calls `Validate()` before building the server and aborts on error.
 

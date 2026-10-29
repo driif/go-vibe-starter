@@ -1,6 +1,6 @@
 ---
 name: research
-description: Investigating a question against primary sources and leaving cited findings in the repo. Use when a decision needs facts about a dependency, an API, a spec or an RFC, when a library's real behaviour has to be checked before coding against it, or when the user asks for reading legwork to be delegated.
+description: Investigates a question against primary sources and leaves cited findings in the repo. Use when a decision needs facts about a dependency, an API, a spec or an RFC, when a library's real behaviour has to be checked before coding against it, or when the user asks for reading legwork to be delegated.
 ---
 
 Research runs in a **background agent** so this session keeps working while it reads. Dispatch it,

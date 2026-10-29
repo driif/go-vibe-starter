@@ -3,6 +3,13 @@
 Worked shapes for [`tdd`](SKILL.md). Each one is the form this repo already uses — copy the shape,
 not the subject.
 
+## Contents
+- Which package a test file declares — `package x` vs `package x_test`
+- Table-driven — the standard case shape
+- Handler, with the store faked — `httptest` against a fake `Querier`
+- Against a real Postgres — `test.E2e`, guarded by `-short`
+- Filesystem and helpers — `t.TempDir()`, `t.Helper()`
+
 ## Which package a test file declares
 
 - `package <same>` when the test needs an unexported seam: `internal/api/handlers` tests build

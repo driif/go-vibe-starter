@@ -51,7 +51,31 @@ func TestAppValidate(t *testing.T) {
 			name:        "none in production",
 			environment: config.EnvironmentProduction,
 			provider:    config.AuthProviderNone,
-			wantErr:     `AUTH_PROVIDER=none is not allowed with APP_ENVIRONMENT=production: set AUTH_PROVIDER=keycloak`,
+			wantErr:     `AUTH_PROVIDER=none is only allowed when APP_ENVIRONMENT is one of [dev, development, local, test], got "production": set AUTH_PROVIDER=keycloak`,
+		},
+		{
+			// the guard is an allow-list, so a misspelled production value must not slip through
+			name:        "none with abbreviated production",
+			environment: "prod",
+			provider:    config.AuthProviderNone,
+			wantErr:     `AUTH_PROVIDER=none is only allowed when APP_ENVIRONMENT is one of [dev, development, local, test], got "prod": set AUTH_PROVIDER=keycloak`,
+		},
+		{
+			name:        "none in staging",
+			environment: "staging",
+			provider:    config.AuthProviderNone,
+			wantErr:     `AUTH_PROVIDER=none is only allowed when APP_ENVIRONMENT is one of [dev, development, local, test], got "staging": set AUTH_PROVIDER=keycloak`,
+		},
+		{
+			name:        "none with capitalised production",
+			environment: "Production",
+			provider:    config.AuthProviderNone,
+			wantErr:     `AUTH_PROVIDER=none is only allowed when APP_ENVIRONMENT is one of [dev, development, local, test], got "Production": set AUTH_PROVIDER=keycloak`,
+		},
+		{
+			name:        "none with padded development",
+			environment: "  Development  ",
+			provider:    config.AuthProviderNone,
 		},
 		{
 			name:        "unknown provider",
