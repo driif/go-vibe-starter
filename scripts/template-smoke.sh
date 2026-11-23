@@ -72,7 +72,9 @@ if [ "$no_docker" -eq 1 ]; then
   printf '%s-client\n' "$module" > sibling-module.txt
   "$BASH" scripts/init.sh --module "$module/v2" --name tools --yes </dev/null
   grep -Fxq "$module-client" sibling-module.txt
-  [ -f bin/tools ] && bin/tools --version
+  test -f bin/tools
+  bin/tools --version
+  "$BASH" scripts/init.sh --module "$module/v2/internal" --name tools --yes </dev/null
 else
   echo '7. Check image'
   compose_started=1

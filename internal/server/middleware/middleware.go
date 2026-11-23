@@ -71,7 +71,7 @@ func (w *responseWriter) Flush() {
 }
 
 // AccessLog records one access line and, for RPC calls, a duration observation.
-func AccessLog(reg prometheus.Registerer, skip ...string) func(http.Handler) http.Handler {
+func AccessLog(reg prometheus.Registerer, skip ...string) (func(http.Handler) http.Handler, error) {
 	var duration *prometheus.HistogramVec
 	if reg != nil {
 		duration = prometheus.NewHistogramVec(prometheus.HistogramOpts{
@@ -79,7 +79,9 @@ func AccessLog(reg prometheus.Registerer, skip ...string) func(http.Handler) htt
 			Help:    "RPC duration including authentication and HTTP middleware.",
 			Buckets: prometheus.DefBuckets,
 		}, []string{"procedure", "code"})
-		reg.MustRegister(duration)
+		if err := reg.Register(duration); err != nil {
+			return nil, err
+		}
 	}
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -107,7 +109,7 @@ func AccessLog(reg prometheus.Registerer, skip ...string) func(http.Handler) htt
 			}
 			slog.LogAttrs(r.Context(), slog.LevelInfo, "request", attrs...)
 		})
-	}
+	}, nil
 }
 
 // Recover converts a plain HTTP handler panic into an internal error response.

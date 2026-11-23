@@ -38,6 +38,7 @@ See the [Keycloak server administration guide](https://www.keycloak.org/docs/lat
 
 ## Verifier limits
 
+Configure the issuer and its advertised JWKS URL as direct endpoints. Redirects are rejected.
 Tokens are checked locally against discovery/JWKS, including issuer, audience, expiry, signature,
 nonempty subject and Keycloak access-token type. Readiness requires keys to have loaded once; a
 later provider outage does not remove readiness. Previously cached keys can verify tokens during

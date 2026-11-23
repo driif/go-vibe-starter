@@ -207,3 +207,18 @@ func TestReadyRequiresSigningKeys(t *testing.T) {
 	require.ErrorContains(t, verifier.Ready(t.Context()), "no usable signing keys")
 	require.False(t, verifier.keys.ready.Load())
 }
+
+func TestReadyRejectsRedirectedKeys(t *testing.T) {
+	mux := http.NewServeMux()
+	issuer := httptest.NewServer(mux)
+	t.Cleanup(issuer.Close)
+	mux.HandleFunc("GET /.well-known/openid-configuration", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"issuer":"` + issuer.URL + `","jwks_uri":"` + issuer.URL + `/keys"}`))
+	})
+	mux.HandleFunc("GET /keys", func(w http.ResponseWriter, r *http.Request) { http.Redirect(w, r, "/empty", http.StatusFound) })
+	mux.HandleFunc("GET /empty", func(w http.ResponseWriter, _ *http.Request) { _, _ = w.Write([]byte(`{"keys":[]}`)) })
+	verifier := New(issuer.URL, "api")
+	require.Error(t, verifier.Ready(t.Context()))
+	require.False(t, verifier.keys.ready.Load())
+}

@@ -41,7 +41,10 @@ func TestAccessLog(t *testing.T) {
 	slog.SetDefault(slog.New(reqlog.NewHandler(slog.NewJSONHandler(&output, nil))))
 	t.Cleanup(func() { slog.SetDefault(previous) })
 	reg := prometheus.NewRegistry()
-	access := middleware.AccessLog(reg, "/healthz")
+	access, err := middleware.AccessLog(reg, "/healthz")
+	require.NoError(t, err)
+	_, err = middleware.AccessLog(reg)
+	require.Error(t, err)
 	h := middleware.RequestID(access(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/rpc" {
 			reqlog.SetCode(r.Context(), "ok")
@@ -75,7 +78,9 @@ func TestAccessLog(t *testing.T) {
 
 func TestAccessLog_WriterKeepsFlush(t *testing.T) {
 	w := httptest.NewRecorder()
-	middleware.AccessLog(nil)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	access, err := middleware.AccessLog(nil)
+	require.NoError(t, err)
+	access(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		flusher, ok := w.(http.Flusher)
 		require.True(t, ok)
 		flusher.Flush()

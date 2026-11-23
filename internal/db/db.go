@@ -20,10 +20,23 @@ import (
 	migrations "github.com/driif/go-vibe-starter/sql"
 )
 
+func poolConfig(url string) (*pgxpool.Config, error) {
+	cfg, err := pgxpool.ParseConfig(url)
+	if err != nil {
+		// pgx parse errors may include credentials from connection parameters.
+		return nil, errors.New("invalid DATABASE_URL: check the connection parameters")
+	}
+	return cfg, nil
+}
+
 // Open creates a pool with the pgxpool defaults, which pool_* parameters of url override, and
 // pings it.
 func Open(ctx context.Context, url string) (*pgxpool.Pool, error) {
-	pool, err := pgxpool.New(ctx, url)
+	cfg, err := poolConfig(url)
+	if err != nil {
+		return nil, err
+	}
+	pool, err := pgxpool.NewWithConfig(ctx, cfg)
 	if err != nil {
 		return nil, err
 	}
@@ -59,11 +72,11 @@ func migrate(ctx context.Context, url, command string, fsys fs.FS, out io.Writer
 		return fmt.Errorf("unknown migrate command %q", command)
 	}
 	// parsed as a pool config so pool_* parameters of url are not sent to the server
-	poolConfig, err := pgxpool.ParseConfig(url)
+	cfg, err := poolConfig(url)
 	if err != nil {
 		return err
 	}
-	conn := stdlib.OpenDB(*poolConfig.ConnConfig)
+	conn := stdlib.OpenDB(*cfg.ConnConfig)
 	defer conn.Close()
 
 	locker, err := lock.NewPostgresSessionLocker()

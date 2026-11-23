@@ -4,6 +4,7 @@ package server
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net"
 	"net/http"
@@ -39,7 +40,11 @@ func build(d Deps, hub func(*connect.Server, *routegroup.Bundle, Deps)) (http.Ha
 		return nil, errors.New("database and verifier are required")
 	}
 	router := routegroup.New(http.NewServeMux())
-	router.Use(middleware.RequestID, middleware.AccessLog(d.Metrics, "/healthz", "/readyz"), middleware.Recover,
+	access, err := middleware.AccessLog(d.Metrics, "/healthz", "/readyz")
+	if err != nil {
+		return nil, fmt.Errorf("register RPC metrics: %w", err)
+	}
+	router.Use(middleware.RequestID, access, middleware.Recover,
 		middleware.SecurityHeaders, middleware.CORS(d.CORSOrigins))
 	public := router.Group()
 	public.HandleFunc("GET /healthz", healthz)

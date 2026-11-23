@@ -36,8 +36,9 @@ type Verifier struct {
 func New(issuer, audience string) *Verifier {
 	transport := &replay{base: http.DefaultTransport, ttl: fetchTimeout}
 	client := &http.Client{
-		Timeout:   fetchTimeout,
-		Transport: transport,
+		Timeout:       fetchTimeout,
+		CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
+		Transport:     transport,
 	}
 	keys := &keySet{issuer: issuer, transport: transport, ctx: oidc.ClientContext(context.Background(), client)}
 	return &Verifier{

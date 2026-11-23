@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"io"
 	"net/http"
 	"testing"
@@ -20,7 +21,8 @@ func TestStreaming_Flushes(t *testing.T) {
 			name = "h2c"
 		}
 		t.Run(name, func(t *testing.T) {
-			srv := testHTTPServer(t)
+			release := make(chan struct{})
+			srv := serveTestHandler(t, gatedHandler(t, release))
 			httpClient := srv.Client()
 			if h2 {
 				protocols := new(http.Protocols)
@@ -30,19 +32,19 @@ func TestStreaming_Flushes(t *testing.T) {
 				httpClient = &http.Client{Transport: transport}
 			}
 			client := connect.NewClient(connecthttp.NewTransport(httpClient, srv.URL))
-			ctx, _ := clientContext(t.Context(), "valid")
-			start := time.Now()
+			bounded, cancel := context.WithTimeout(t.Context(), 10*time.Second)
+			defer cancel()
+			ctx, _ := clientContext(bounded, "valid")
 			stream, err := client.CallServerStream(ctx, tickSpec, &apiv1.WhoAmIRequest{})
 			require.NoError(t, err)
 			defer stream.Close()
 			var first, second apiv1.WhoAmIResponse
 			require.NoError(t, stream.Receive(&first))
 			require.Equal(t, "first", first.GetSubject())
-			require.Less(t, time.Since(start), time.Second)
+			close(release)
 			require.NoError(t, stream.Receive(&second))
 			require.Equal(t, "second", second.GetSubject())
 			require.ErrorIs(t, stream.Receive(&apiv1.WhoAmIResponse{}), io.EOF)
-			require.GreaterOrEqual(t, time.Since(start), time.Second)
 		})
 	}
 }

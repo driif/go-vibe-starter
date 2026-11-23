@@ -143,3 +143,14 @@ func TestCheckSchema(t *testing.T) {
 		})
 	}
 }
+
+func TestInvalidDatabaseURLRedacted(t *testing.T) {
+	t.Parallel()
+	const invalid = "postgres://test:fixture@localhost/example?sslpassword=fixture-query&pool_max_conns=invalid"
+	_, err := db.Open(t.Context(), invalid)
+	require.ErrorContains(t, err, "DATABASE_URL")
+	require.NotContains(t, err.Error(), "fixture")
+	err = db.Migrate(t.Context(), invalid, "status", io.Discard)
+	require.ErrorContains(t, err, "DATABASE_URL")
+	require.NotContains(t, err.Error(), "fixture")
+}

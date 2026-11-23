@@ -56,11 +56,12 @@ Header and idle timeouts are set; read/write timeouts are intentionally absent b
 HTTP write deadlines break streaming RPCs. Handlers have no automatic wall-time bound. Apply unary
 application timeouts with contexts; for future streams enforce maximum duration, receive limits and
 per-message deadlines using `http.NewResponseController` where appropriate. Clients can request a
-shorter deadline. Input/output messages are limited to 4 MiB. Auth runs once per stream.
+shorter deadline. The server limits each incoming RPC message to 4 MiB. Size large responses in the service or at the proxy. Auth runs once per stream.
 
-Shutdown marks readiness false and drains both listeners. After 25 seconds remaining streams are cut
-and the process exits nonzero. Give Kubernetes enough termination grace and a `preStop` sleep to
-let load balancers observe readiness before SIGTERM. No deployment manifests ship.
+On SIGTERM both listeners close to new connections. In-flight requests have 25 seconds to finish.
+If the deadline expires, the server closes active connections and exits nonzero. In Kubernetes, allow
+time for endpoint removal to reach your load balancer, using a `preStop` delay if needed. Include that
+delay and the drain period in the pod termination grace period.
 
 ## Pool and readiness
 

@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
-	"time"
 
 	"connectrpc.com/connect/v2"
 	"github.com/go-pkgz/routegroup"
@@ -39,6 +38,11 @@ func (tokenVerifier) Verify(_ context.Context, token string) (*identity.Principa
 }
 
 func testHandler(t *testing.T, change ...func(*Deps)) http.Handler {
+	t.Helper()
+	return gatedHandler(t, nil, change...)
+}
+
+func gatedHandler(t *testing.T, release <-chan struct{}, change ...func(*Deps)) http.Handler {
 	t.Helper()
 	d := Deps{DB: new(pgxpool.Pool), Verifier: tokenVerifier{}, CORSOrigins: []string{"https://app.example"}}
 	for _, fn := range change {
@@ -77,7 +81,7 @@ func testHandler(t *testing.T, change ...func(*Deps)) http.Handler {
 			select {
 			case <-ctx.Done():
 				return ctx.Err()
-			case <-time.After(1100 * time.Millisecond):
+			case <-release:
 			}
 			return stream.Send(&apiv1.WhoAmIResponse{Subject: "second"})
 		}})
@@ -114,7 +118,12 @@ func testHandler(t *testing.T, change ...func(*Deps)) http.Handler {
 
 func testHTTPServer(t *testing.T, change ...func(*Deps)) *httptest.Server {
 	t.Helper()
-	srv := httptest.NewUnstartedServer(testHandler(t, change...))
+	return serveTestHandler(t, testHandler(t, change...))
+}
+
+func serveTestHandler(t *testing.T, handler http.Handler) *httptest.Server {
+	t.Helper()
+	srv := httptest.NewUnstartedServer(handler)
 	srv.Config.Protocols = New("", nil).Protocols
 	srv.Start()
 	t.Cleanup(srv.Close)

@@ -43,6 +43,8 @@ fi
 module=${module:-$old}
 module_re='^[a-z0-9][a-z0-9.-]*\.[a-z][a-z0-9-]*(/[A-Za-z0-9_~-][A-Za-z0-9._~-]*)+$'
 [[ "$module" =~ $module_re ]] || invalid 'invalid module path: use a domain followed by a path'
+placeholder=init-placeholder.invalid/module
+[[ "$module" != *"$placeholder"* ]] || invalid 'module contains a path reserved for initialization'
 if [ -z "$name" ]; then
   base=${module##*/}
   if [[ "$base" =~ ^v[0-9]+$ ]]; then parent=${module%/*}; base=${parent##*/}; fi
@@ -124,33 +126,30 @@ EOF
   fi
   rm -f scripts/template-smoke.sh
 fi
-replace_module() {
-  awk -v report="$1" -v old="$old" -v new="$module" '
-      {
-        rest = $0; result = ""
-        while (i = index(rest, old)) {
-          result = result substr(rest, 1, i-1)
-          rest = substr(rest, i)
-          if (index(new, old) == 1 && index(rest, new) == 1) {
-            result = result new; rest = substr(rest, length(new)+1)
-          } else {
-            rest = substr(rest, length(old)+1)
-            result = result (rest ~ /^[[:alnum:]_~-]/ ? old : new)
-          }
-        }
-        if (!report) print result rest
-        else if (result rest != $0) { print; failed=1 }
-      } END { exit failed }
-    '
+# Rename through a reserved path so an interrupted run can resume even when the
+# destination is inside the old module (for example, a /v2 or /internal suffix).
+rename_paths() {
+  from=$1
+  to=$2
+  git grep -Iz --untracked -l -F -e "$from" -- . ':!go.mod' ':!internal/gen' ':!internal/db/gen' ':!agents/skills' ':!scripts/init.sh' >"$tmp/files" || [ "$?" -eq 1 ]
+  while IFS= read -r -d '' file; do
+    awk -v old="$from" -v new="$to" '{
+      rest=$0; result=""
+      while (i=index(rest, old)) {
+        result=result substr(rest,1,i-1)
+        rest=substr(rest,i+length(old))
+        result=result (rest ~ /^[[:alnum:]_~-]/ ? old : new)
+      }
+      print result rest
+    }' "$file" >"$tmp/rewrite"
+    if ! cmp -s "$file" "$tmp/rewrite"; then cat "$tmp/rewrite" >"$file"; fi
+  done <"$tmp/files"
 }
 if [ "$old" != "$module" ]; then
-  while IFS= read -r -d '' file; do
-    [ "$file" != go.mod ] || continue
-    replace_module 0 < "$file" >"$tmp/rewrite"
-    if ! cmp -s "$file" "$tmp/rewrite"; then cat "$tmp/rewrite" >"$file"; fi
-  done < <(git grep -Iz --untracked -l -F -e "$old" -- . ':!internal/gen' ':!internal/db/gen' ':!agents/skills' || true)
+  rename_paths "$old" "$placeholder"
   go mod edit -module "$module"
 fi
+rename_paths "$placeholder" "$module"
 [ -n "$old_name" ] || fail 'APP_NAME anchor missing in Makefile'
 grep -q '^name: ' docker-compose.yaml || fail 'name anchor missing in docker-compose.yaml'
 rewrite Makefile "s/^APP_NAME := .*$/APP_NAME := $name/"
@@ -161,10 +160,6 @@ make sync-skills
 go build ./...
 go vet ./...
 make build
-if [ "$old" != "$module" ]; then
-  git grep -nIF --untracked -e "$old" -- . ':!scripts/init.sh' >"$tmp/matches" || [ "$?" -eq 1 ]
-  if ! replace_module 1 <"$tmp/matches"; then fail 'old module path remains'; fi
-fi
 
 present=0
 while IFS= read -r -d '' file; do
