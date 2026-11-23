@@ -131,9 +131,9 @@ fi
 rename_paths() {
   from=$1
   to=$2
-  git grep -Iz --untracked -l -F -e "$from" -- . ':!go.mod' ':!internal/gen' ':!internal/db/gen' ':!agents/skills' ':!scripts/init.sh' >"$tmp/files" || [ "$?" -eq 1 ]
+  git grep -Iz --untracked -l -F -e "$from" -- . ':!internal/gen' ':!internal/db/gen' ':!agents/skills' ':!scripts/init.sh' >"$tmp/files" || [ "$?" -eq 1 ]
   while IFS= read -r -d '' file; do
-    awk -v old="$from" -v new="$to" '{
+    awk -v old="$from" -v new="$to" 'FILENAME == "go.mod" && $1 == "module" {print; next} {
       rest=$0; result=""
       while (i=index(rest, old)) {
         result=result substr(rest,1,i-1)
@@ -161,6 +161,7 @@ go build ./...
 go vet ./...
 make build
 
+if git grep -nIF --untracked -e "$placeholder" -- . ':!scripts/init.sh'; then fail 'incomplete module rename'; fi
 present=0
 while IFS= read -r -d '' file; do
   [ -f "$file" ] || continue

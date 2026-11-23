@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 	"slices"
 	"strings"
 	"sync/atomic"
@@ -163,6 +164,7 @@ func (k *keySet) discover(ctx context.Context) (*oidc.RemoteKeySet, error) {
 		return value.Val.(*oidc.RemoteKeySet), nil
 	}
 }
+
 func (k *keySet) loadDiscovery() (*oidc.RemoteKeySet, error) {
 	provider, err := oidc.NewProvider(k.ctx, k.issuer)
 	if err != nil {
@@ -177,6 +179,10 @@ func (k *keySet) loadDiscovery() (*oidc.RemoteKeySet, error) {
 	}
 	if err := provider.Claims(&metadata); err != nil {
 		return nil, err
+	}
+	endpoint, err := url.Parse(metadata.JWKSURL)
+	if err != nil || endpoint.Hostname() == "" || (endpoint.Scheme != "https" && endpoint.Scheme != "http") || endpoint.User != nil || endpoint.Fragment != "" {
+		return nil, errors.New("issuer returned an invalid jwks_uri")
 	}
 	k.transport.mu.Lock()
 	k.transport.keysURL = metadata.JWKSURL

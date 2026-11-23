@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -221,4 +222,28 @@ func TestReadyRejectsRedirectedKeys(t *testing.T) {
 	verifier := New(issuer.URL, "api")
 	require.Error(t, verifier.Ready(t.Context()))
 	require.False(t, verifier.keys.ready.Load())
+}
+
+func TestReadyRetriesIncompleteDiscovery(t *testing.T) {
+	keys := testprovider.New()
+	t.Cleanup(keys.Close)
+	var fixed atomic.Bool
+	mux := http.NewServeMux()
+	issuer := httptest.NewServer(mux)
+	t.Cleanup(issuer.Close)
+	mux.HandleFunc("GET /.well-known/openid-configuration", func(w http.ResponseWriter, _ *http.Request) {
+		endpoint := "/relative"
+		if fixed.Load() {
+			endpoint = keys.URL() + "/protocol/openid-connect/certs"
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"issuer":"` + issuer.URL + `","jwks_uri":"` + endpoint + `"}`))
+	})
+	v := New(issuer.URL, "api")
+	require.ErrorContains(t, v.Ready(t.Context()), "invalid jwks_uri")
+	fixed.Store(true)
+	v.keys.transport.mu.Lock()
+	clear(v.keys.transport.cache)
+	v.keys.transport.mu.Unlock()
+	require.NoError(t, v.Ready(t.Context()))
 }
