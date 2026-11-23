@@ -31,17 +31,18 @@ Repo words, for writing about the work:
 
 | Word | Means |
 |---|---|
-| `the slice` | the chain a feature walks: migration → sqlc query → OpenAPI → handler → route → test |
+| `the slice` | the chain a feature walks: migration → sqlc query → protobuf contract → handler → route → test |
 | `tracer bullet` | a ticket thin enough to walk the whole slice end to end in one pass |
 | `deep module` | small interface over substantial implementation; the target shape for a Go package |
 | `seam` | the boundary where an implementation swaps out (`AUTH_PROVIDER`, a consumer-defined interface) |
 | `red-green` | write the failing test, make it pass, then refactor |
 | `frontier` | the edge of what is decided; the next interview question sits there |
 | `confirmed` | a finding re-read at `file:line` and shown to be real; anything else is a false positive |
-| `drift` | generated output no longer matching its source; `make gen` then `git diff --exit-code` |
+| `drift` | generated output no longer matching its source; the regeneration comparison in `make check` |
 | `principal` | the authenticated caller carried in the request context (subject + roles) |
-| `hub` | `internal/api/router/routes.go`, which only calls per-domain `register*` funcs |
-| `DEMO` | the strippable reference slice (`notes`), removed by `make init` |
+| `hub` | `internal/server/routes.go`, which calls each domain mount function |
+| `mount file` | one `routes_<domain>.go` that wires a domain |
+| `harness` | `internal/test`, real HTTP/OIDC/Postgres fixtures |
 
 ### Negation
 
@@ -50,7 +51,7 @@ Steering by prohibition drags the forbidden behaviour into context and makes it 
 the activated concept overruns, so the ban half-reads as an instruction. Prompt the **positive**,
 stating the target behaviour ("write lowercase in-code comments describing current state") so the
 banned one is never spoken. A prohibition earns its place only as a **guardrail** you cannot phrase
-positively ("never hand-edit `*.gen.go`", "never write an AI-attribution trailer"), and even then it
+positively ("never hand-edit `*.pb.go` and Connect output", "never write an AI-attribution trailer"), and even then it
 travels with its positive target.
 
 ## Pruning
@@ -59,10 +60,10 @@ travels with its positive target.
   Duplication costs maintenance and tokens, and inflates a meaning's prominence past its real rank.
   Here that source is `AGENTS.md` for conventions and commands, `CONTEXT.md` for domain terms,
   `docs/adr/` for decisions already made.
-- The **environment** is a source of truth too: the `Makefile`, `.env.example`, `oapi/openapi.yaml`,
+- The **environment** is a source of truth too: the `Makefile`, `.env.example`, `proto/api/v1/<domain>.proto`,
   the directory layout. A document restating it is a cache of a lookup, earning its load only when
   the lookup is expensive. Cache what the agent cannot find by looking — the unwritten convention,
-  the reason behind a choice, the gotcha no config confesses. Leave `make test` to the Makefile.
+  the reason behind a choice, the gotcha no config confesses. Leave `make check` to the Makefile.
 - Check every line for **relevance**: does it still bear on what the document does? Without a pruning
   discipline the default fate is **sediment**, stale layers that settle because adding feels safe and
   removing feels risky.

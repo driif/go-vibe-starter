@@ -23,10 +23,10 @@ the domain's own words survives the weeks it may sit open.
 ## 2. Cut tracer bullets
 
 **The slice is the unit.** One good ticket in this repo is usually one `go-feature` vertical slice:
-migration → sqlc query → OpenAPI → handler → route → test. It ends with `make test` and `make lint`
-green and a working endpoint. `notes` in the `DEMO` slice is the worked example of that shape.
+migration → sqlc query → protobuf contract → handler → route → test. It ends with `make check`
+green and a working endpoint. See AGENTS.md §8 and the persistence snippets in `go-feature`.
 
-- **Vertical, never horizontal.** "Notes CRUD, create only" is a ticket. "All the migrations" is a
+- **Vertical, never horizontal.** "Tasks CRUD, create only" is a ticket. "All the migrations" is a
   layer, and a layer leaves nothing demonstrable at the end of it.
 - **One fresh context window each.** If a ticket cannot be held in one session, split it by
   behaviour: create before list, list before delete.
@@ -34,7 +34,7 @@ green and a working endpoint. `notes` in the `DEMO` slice is the worked example 
   `seam` — is its own ticket, and it blocks the tickets it serves.
 - **Blocking edges are real gates.** A ticket blocks another when the second cannot compile, run or
   be tested until the first lands. Sharing a file is not a gate; the `hub` takes one
-  `register<Domain>(s)` line per domain precisely so two slices never collide there.
+  `mount<Domain>` line per domain precisely so two slices never collide there.
 - A mechanical change whose blast radius fans across the codebase resists vertical slicing. Sequence
   it expand–contract instead: [`WIDE-REFACTOR.md`](WIDE-REFACTOR.md).
 
@@ -54,14 +54,14 @@ Blockers first, so every `Blocked by #N` names a real issue number. Body section
 cat > /tmp/ticket-01.md <<'BODY'
 ## What this slice delivers
 
-POST /v1/notes persists a note owned by the calling principal and returns 201 with the created note.
+POST /api.v1.TaskService/CreateTask persists a task owned by the calling principal and returns the created task.
 
 ## Acceptance criteria
 
-- [ ] `POST /v1/notes` with a valid body returns 201 and the created note
-- [ ] `owner_id` is taken from the principal, never from the request body
-- [ ] a malformed body returns 400 through `errs.Write`
-- [ ] `notes_test.go` covers the success case and both failure cases
+- [ ] `POST /api.v1.TaskService/CreateTask` with a valid body returns the created task
+- [ ] `owner` is taken from the principal, never from the request body
+- [ ] a rejected title returns `invalid_argument` with a validation detail
+- [ ] integration tests cover the success case and both failure cases
 
 ## Blocked by
 
@@ -69,11 +69,10 @@ Blocked by #12
 
 ## Validation commands
 
-make test
-make lint
+make check
 BODY
 
-gh issue create --title "[ticket] create a note" --label ticket --body-file /tmp/ticket-01.md
+gh issue create --title "[ticket] create a task" --label ticket --body-file /tmp/ticket-01.md
 ```
 
 Write "Blocked by" as one `Blocked by #N` line per blocker so GitHub renders the cross-reference, or

@@ -5,21 +5,19 @@ failures rather than fixing them.
 
 Get your own context with `git diff <base>...HEAD`, plus `git status --short`, `git diff` and
 `git diff --cached`, since work here is normally left uncommitted. Then read each changed source file
-next to its `_test.go`, and read `internal/server/test/` before judging any handler test — the
+next to its `_test.go`, and read `internal/test/` before judging any handler test — the
 helpers already there are what a good test reuses. Pre-existing gaps count only where they touch the
 changed code.
 
-`go test -race ./...` is the suite (`make test`). `go test -short ./...` is the no-Docker subset —
-the testcontainers-backed tests in `internal/server/test` are skipped there. Running the suite and
-`go test -cover` on the changed packages is welcome; reading their output is how you tell a real test
-from a decorative one. Failing or flaky tests you observe are findings: report them, leave them
-failing.
+`go test -race ./...` is the test step of `make check`. Docker is required. Integration tests
+use `internal/test` with isolated Postgres databases, the real issuer/verifier and generated clients.
+Report failures and flakes, leaving the tree unchanged.
 
 ## Coverage of the change
 
 1. Every new exported function, handler and branch has a test that would fail without it.
-2. Error paths are exercised, not just the happy one: the 400, the 404, the store returning an error.
-3. Boundaries appear in the table — empty input, the maximum length declared in `oapi/openapi.yaml`,
+2. Error paths are exercised, not just the happy one: invalid input, not-found, each domain reason and an unexpected store error.
+3. Boundaries appear in the table — empty input, the maximum length declared in `proto/api/v1/<domain>.proto`,
    a missing `principal`, a caller reaching for another owner's row.
 4. A bug fix carries a regression test that fails against the old code.
 5. A skipped or `t.Skip`-ed test says why, and the reason still holds.

@@ -1,4 +1,4 @@
-# Go Vibe Starter — Claude Code
+# Claude Code
 
 @AGENTS.md
 

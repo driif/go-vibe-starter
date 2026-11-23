@@ -1,26 +1,20 @@
--- DEMO: reference vertical slice — delete with `make init` or by hand.
+-- DEMO: notes
 
 -- name: CreateNote :one
--- CreateNote inserts a note owned by the caller. The id and timestamps come
--- from the column defaults.
-INSERT INTO notes (owner_id, title, body)
-VALUES ($1, $2, $3)
+INSERT INTO notes (owner, title, body)
+VALUES (@owner, @title, @body)
 RETURNING *;
 
 -- name: GetNote :one
--- GetNote matches on owner_id as well as id, so a caller can never address
--- another caller's row: a foreign id matches nothing.
 SELECT * FROM notes
-WHERE id = $1 AND owner_id = $2;
+WHERE id = @id AND owner = @owner;
 
--- name: ListNotesByOwner :many
--- ListNotesByOwner returns the caller's notes, newest first.
+-- name: ListNotes :many
 SELECT * FROM notes
-WHERE owner_id = $1
-ORDER BY created_at DESC;
+WHERE owner = @owner
+ORDER BY created_at DESC, id DESC
+LIMIT 100;
 
--- name: DeleteNote :exec
--- DeleteNote is scoped to the owner, so deleting a foreign or missing id is a
--- no-op rather than an error.
+-- name: DeleteNote :execrows
 DELETE FROM notes
-WHERE id = $1 AND owner_id = $2;
+WHERE id = @id AND owner = @owner;

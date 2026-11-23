@@ -4,15 +4,15 @@ Find code on this branch that works but costs more complexity than the problem r
 
 Scope: over-engineering **this branch introduces or makes worse**. Pre-existing complexity the branch
 does not touch is out of scope, and complexity the spec explicitly required is not a finding. Skip
-generated output (`internal/api/*.gen.go`, `internal/db/gen/`) and vendored code.
+generated output (`internal/gen/**`, `internal/db/gen/`) and vendored code.
 
 Get your own context with `git diff <base>...HEAD`, plus `git status --short`, `git diff` and
 `git diff --cached`, since work here is normally left uncommitted. Before reporting anything as
 *unused*, *no callers* or *never triggers*, prove it: search the whole repo including `_test.go`
-files, `oapi/openapi.yaml`, the `Makefile`, `scripts/` and the router files, and cite the search in
+files, `proto/api/v1/<domain>.proto`, the `Makefile`, `scripts/` and the router files, and cite the search in
 the finding. Config-driven and route-registered callers do not look like callers.
 
-The `DEMO` notes slice exists to demonstrate **the slice**, so its existence is never a finding;
+The `whoami` slice exists to demonstrate **the slice**, so its existence is never a finding;
 complexity inside it beyond that demonstration still is.
 
 The target shape is a `deep module`: a small exported surface over an implementation that carries
@@ -23,11 +23,11 @@ real weight. Findings here are the inverse — surface added without weight behi
 - A wrapper whose method calls one other method with the same signature.
 - A constructor or factory for a single concrete type that no test substitutes.
 - An interface declared in the package that implements it. Interfaces belong at the consumer —
-  `noteStore` in `internal/api/handlers/notes.go` is the pattern.
+  only a real variation or test double justifies the boundary.
 - Handler → service → repository where a layer only forwards. In this repo a handler calling the
-  sqlc-generated querier is the whole stack.
+  domain store is the whole stack.
 - Two types for the same data with converters between them, where the generated
-  `internal/api` type would have served.
+  `internal/gen/api/v1/` message would have served.
 
 ## Generalization ahead of need
 

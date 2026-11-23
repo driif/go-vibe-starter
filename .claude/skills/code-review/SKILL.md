@@ -55,8 +55,8 @@ whole list still finds them all. Severity filtering happens at step 6, after the
      verdict is written.
    - A pre-existing problem the branch did not introduce is still in scope — verify it and mark it
      `minor` unless the branch made it worse.
-   - Findings inside generated files (`internal/api/*.gen.go`, `internal/db/gen/`) are really
-     findings about their source (`oapi/openapi.yaml`, `sql/queries/`, `migrations/`) or about
+   - Findings inside generated files (`internal/gen/**`, `internal/db/gen/`) are really
+     findings about their source (`proto/api/v1/<domain>.proto`, `sql/queries/`, `sql/migrations/`) or about
      `drift`. Re-point them there or discard.
 6. **Report.** Two headings, `## Standards` and `## Spec`, each listing its confirmed findings worst
    severity first. Do not rerank across the axes — that merge is exactly what the split prevents.
@@ -64,13 +64,13 @@ whole list still finds them all. Severity filtering happens at step 6, after the
    In critical-only mode, cut the list to `critical` and `major` **here** — the reviewers still
    reported everything.
 7. **Fix, when the user asked for fixes.** Confirmed findings only, worst severity first. Rerun
-   `make test` and `make lint` until both exit 0, and leave the result in the working tree. Then run
+   `make check` until it exits 0, and leave the result in the working tree. Then run
    the panel again: a fix is itself unreviewed code. You are done when a full pass raises nothing
    new.
 
 ## Taxonomy
 
-Every finding is one line plus its detail: `CRITICAL: internal/api/handlers/notes.go:64 — <claim>`.
+Every finding is one line plus its detail: `CRITICAL: internal/rpc/tasks/tasks.go:64 — <claim>`.
 Unmarked reads as minor.
 
 | Severity | Means |

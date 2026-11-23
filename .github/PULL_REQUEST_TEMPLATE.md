@@ -10,4 +10,4 @@ Closes #
 
 ## How verified
 
-<!-- e.g. make test, make lint, manual check -->
+<!-- e.g. make check, focused integration test -->

@@ -22,7 +22,7 @@ to be discovered:**
 - `name`: 64 characters max, `a-z`, `0-9` and `-` only. The words `claude` and `anthropic` are
   reserved and rejected.
 - `description`: 1024 characters max, never empty, **no angle brackets** — a placeholder like
-  `/v1/<thing>` reads as an XML tag. Write `a new /v1 resource` instead.
+  `proto/api/v1/<domain>.proto` is parsed as markup. Write `a proto contract` instead.
 - Write the description in the **third person, verb first**: "Builds business logic…", not "Building
   business logic…" and never "I can help you…" or "You can use this to…". It is injected into the
   system prompt, where a mixed point of view degrades selection.
@@ -35,7 +35,7 @@ to be discovered:**
 ```yaml
 ---
 name: go-feature
-description: Builds business logic in this repo as a vertical slice from schema to HTTP. Use when adding or changing an endpoint, a migration, a sqlc query, a handler or a route, or when a ticket asks for a new /v1 resource.
+description: Builds business logic in this repo as a vertical slice from contract to storage. Use when adding or changing an RPC, a proto message, a migration, a sqlc query, a store or a handler, or when a schema change has to reach the API.
 ---
 ```
 

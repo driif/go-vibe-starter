@@ -7,12 +7,12 @@ guard it. Assumes the vocabulary in [`SKILL.md`](SKILL.md) — module, interface
 
 What the cluster depends on decides how the deepened module gets tested across its seam.
 
-**1. In-process.** Pure computation and in-memory state: validation, mapping a `gen.Note` to an API
+**1. In-process.** Pure computation and in-memory state: validation, mapping a `gen.Task` to an API
 type, building a query filter. Always deepenable — merge the packages, test through the new exported
 surface, no seam needed.
 
 **2. Local-substitutable.** A real dependency with a stand-in that runs inside `go test`: Postgres
-through the helpers in `internal/server/test`, the filesystem through `t.TempDir()`, an HTTP
+through the helpers in `internal/test`, the filesystem through `t.TempDir()`, an HTTP
 dependency through `httptest.Server`. Deepenable as soon as the stand-in exists. The seam stays
 internal — the deepened package's exported surface says nothing about it.
 
@@ -21,15 +21,14 @@ appears: declare the interface in the consumer, inject an HTTP adapter in produc
 in-memory adapter in tests, and keep the logic in one deep module even though it deploys across a
 network.
 
-**4. True external.** A third party you do not control — Keycloak here. `internal/server/auth` is
-the worked example: one-method `TokenVerifier` declared at the consumer, `*keycloak.Verifier` as the
-production adapter, a fake as the test adapter, and `AUTH_PROVIDER=none` swapping the whole
+**4. True external.** A third party you do not control — Keycloak here. the consumer verifier interface is
+the seam: Keycloak is the production adapter, tested against the in-process OIDC issuer, and `AUTH_PROVIDER=none` swapping the whole
 behaviour for a static dev `principal`.
 
 ## Seam discipline
 
 - **One adapter is a hypothetical seam; two make it real.** Production plus a test adapter counts as
-  two — that is what earns `gen.Querier` and `auth.TokenVerifier` their place. Below that bar, take
+  two — that is what earns injected dependencies and consumer verifier interfaces their place. Below that bar, take
   the concrete type.
 - **Internal seams stay internal.** A deep package may split itself on unexported interfaces for its
   own tests. Exporting them because a test found them handy widens the interface and undoes the
@@ -46,5 +45,5 @@ behaviour for a static dev `principal`.
 - Assert observable outcomes through the interface: returned values, status codes, rows in Postgres.
   A test that survives an internal rewrite is testing the interface; one that has to change is
   testing past it.
-- `make test` and `make lint` both exit 0 before the deepening is called done, and the diff deletes
+- `make check` exits 0 before the deepening is called done, and the diff deletes
   more lines than it adds — if it does not, check whether anything was actually hidden.

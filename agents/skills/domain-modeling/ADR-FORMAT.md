@@ -42,7 +42,7 @@ Decisions in a repo shaped like this one that meet the three tests in
 - **Seams that carry lock-in** — the `AUTH_PROVIDER` switch between `none` and `keycloak`, the
   database, anything that would take weeks to swap.
 - **Deliberate deviation from the obvious path** — sqlc and hand-written SQL instead of an ORM,
-  OpenAPI-first codegen instead of hand-rolled routes. These stop the next engineer from "fixing"
+  protobuf contract-first codegen instead of hand-rolled routes. These stop the next engineer from "fixing"
   something that was chosen.
 - **Boundary and ownership rules** — which package owns a concept, which data a **principal** may
   reach, what one domain refuses to know about another.

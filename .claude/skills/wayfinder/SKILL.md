@@ -31,7 +31,7 @@ index, not a store: each answer lives in its own issue, and the map gists it and
 <what reaching the end looks like — a spec to hand off, a decision to lock, a change made in place.
 Two lines. Every session reads this before choosing anything.>
 
-## Notes
+## Tasks
 <domain context, standing preferences, skills each session should run>
 
 ## Decisions so far
@@ -91,7 +91,7 @@ all — it goes to **Out of scope**, and never graduates.
 2. **Map the frontier.** Grill again, breadth-first — fan across the whole space rather than deep on
    one thread — surfacing the open questions and which are takeable today. No fog at all means the
    way is already clear: say so, skip the map, and point at `/to-spec`.
-3. **Create the map issue**: Destination and Notes filled, Decisions so far empty, the fog written
+3. **Create the map issue**: Destination and Tasks filled, Decisions so far empty, the fog written
    into Not yet specified.
 4. **Create the decision issues** you can state sharply, then wire `Blocked by #N` in a second pass,
    since issues need numbers before they can reference each other.
@@ -105,7 +105,7 @@ all — it goes to **Out of scope**, and never graduates.
 2. Choose one issue: the user's if they named one, otherwise the first on the frontier. Assign it to
    yourself before any work, so a concurrent session skips it.
 3. Resolve it, zooming as needed: pull the body of a related or closed issue on demand, run the
-   skills the Notes name. In doubt, `grilling` and `domain-modeling`.
+   skills the Tasks name. In doubt, `grilling` and `domain-modeling`.
 4. Record it: post Options considered, Recommendation and the decision as a comment, close the
    issue, append one line to the map's Decisions so far.
 5. Move the fog: create the questions the answer just made sharp (create, then wire), clear the

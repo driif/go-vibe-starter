@@ -32,8 +32,7 @@ whose blocking edges run in a straight line.
 
 ## 3. Read the code the slice touches
 
-Open the files the tickets name and the nearest existing example of the same shape — the `notes`
-`DEMO` slice for a database-plus-API feature, `internal/api/handlers/health.go` for a bare endpoint.
+Open the files the tickets name and the nearest existing example of the same shape — the permanent whoami slice and the persistence snippets in `go-feature`.
 Plans that name real paths, real packages and the existing pattern to copy execute cleanly; plans
 that describe the work abstractly stall on the first task. `AGENTS.md` holds the conventions.
 
@@ -61,44 +60,43 @@ adds no new dependency.
 
 ## Context
 - Issues: #41, #42
-- Files involved: `migrations/`, `sql/queries/projects.sql`, `oapi/openapi.yaml`,
-  `internal/api/handlers/projects.go`, `internal/api/router/routes_projects.go`
-- Patterns to follow: the `notes` DEMO slice for shape, `errs.Write` for error responses, the
-  `principal` from the request context for `owner_id`, helpers in `internal/server/test`
+- Files involved: `sql/migrations/`, `sql/queries/projects.sql`, `proto/api/v1/<domain>.proto`,
+  `internal/rpc/projects/projects.go`, `internal/server/routes_projects.go`
+- Patterns to follow: the worked example in AGENTS.md §8 for shape, `apperr.New` for error responses, the
+  `principal` from the request context for `owner`, helpers in `internal/test`
 
 ## Validation Commands
-- Test: `make test`
-- Lint: `make lint`
+- `make check`
 
 ## Implementation Steps
 
 ### Task 1: Add the projects schema and queries
-- [ ] add `migrations/0002_projects.sql` with goose Up/Down and an index on `owner_id`
+- [ ] add `sql/migrations/00002_projects.sql` with goose Up/Down and an index on `owner`
 - [ ] add `sql/queries/projects.sql` with `CreateProject :one`, `ListProjectsByOwner :many`,
-      `DeleteProject :exec`, all parameterized
+      `DeleteProject :execrows`, all parameterized
 - [ ] run `make sqlc` and commit the regenerated `internal/db/gen` output
-- [ ] write tests for `CreateProject` and `ListProjectsByOwner` using `internal/server/test` helpers
+- [ ] write tests for `CreateProject` and `ListProjectsByOwner` using `internal/test` helpers
 - [ ] write tests for `DeleteProject` including the not-found case
-- [ ] run `make test` and `make lint` — must pass before Task 2
+- [ ] run `make check` — must pass before Task 2
 
-### Task 2: Expose the projects endpoints
-- [ ] add `/v1/projects` (GET, POST) and `/v1/projects/{id}` (DELETE) with schemas to
-      `oapi/openapi.yaml`, then run `make gen-oapi`
-- [ ] add `internal/api/handlers/projects.go`, scoping every query to the principal subject
-- [ ] add `internal/api/router/routes_projects.go` with `registerProjects(s)`, called from the hub
-- [ ] write table-driven tests in `internal/api/handlers/projects_test.go` for the success cases
+### Task 2: Expose the projects RPCs
+- [ ] add CreateProject, ListProjects and DeleteProject RPCs to `proto/api/v1/projects.proto`,
+      with input validation and safe-read options, then run `make gen-proto`
+- [ ] add `internal/rpc/projects/projects.go`, scoping every query to the principal subject
+- [ ] add `internal/server/routes_projects.go` with `mountProjects`, called from the hub
+- [ ] write table-driven tests in `internal/rpc/projects/projects_test.go` for the success cases
 - [ ] write tests for the error cases: another principal's project, missing id, invalid body
-- [ ] run `make test` and `make lint` — must pass before Task 3
+- [ ] run `make check` — must pass before Task 3
 
 ### Task 3: Verify acceptance criteria
 - [ ] verify every acceptance criterion in #41 and #42 holds
 - [ ] run `make gen` and confirm `git diff --exit-code` is clean — no drift
-- [ ] run `make test` and `make lint` — both exit 0
+- [ ] run `make check` — exits 0
 
 ## Post-Completion
 *Informational only — no checkboxes in this section.*
 
-- Smoke-test the endpoints against a running `make db-up && make run`.
+- Smoke-test the endpoints against a running `make dev-up && make run`.
 - Close #41 and #42 referencing the merged change.
 ````
 
@@ -108,7 +106,7 @@ adds no new dependency.
   Context or Post-Completion costs extra loop iterations.
 - `Task` in the header is the token ralphex matches. It stays in English and keeps its number.
 - Every task ends with its own test checkboxes as separate items, then
-  `run make test and make lint — must pass before Task N+1`.
+  `run make check — must pass before Task N+1`.
 - When a task's behaviour only becomes observable in a later task, still list the test checkbox and
   name the dependency in it.
 - Checkboxes are for work the agent can automate. Manual verification, deploys and issue bookkeeping

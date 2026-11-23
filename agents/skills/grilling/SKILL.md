@@ -32,7 +32,7 @@ answer depends on another question still open in this round belongs to a *later*
 
 Finding facts is your job, never the user's. Read before you ask: `AGENTS.md` for conventions and
 commands, `CONTEXT.md` for the domain language, `docs/adr/` for decisions already made,
-`oapi/openapi.yaml` and `migrations/` for the current contract and schema, `.env.example` for
+`proto/api/v1/<domain>.proto` and `sql/migrations/` for the current contract and schema, `.env.example` for
 configuration, `gh issue view <n>` for the issue under discussion, `rg` over `internal/` for how the
 code behaves today.
 
@@ -47,12 +47,10 @@ The *decisions* are the user's. Put each one to them and wait.
 Openers that reliably grow a tree here. Take the ones the topic touches and drop the rest.
 
 - **Shape of the slice** — which links of the slice the change walks (migration → sqlc query →
-  OpenAPI → handler → route → test), and whether it is thin enough to be one **tracer bullet**.
-- **Ownership** — which **principal** may read or change the thing: owner-scoped by subject like the
-  `DEMO` notes slice, role-gated, or unauthenticated.
+  protobuf contract → handler → route → test), and whether it is thin enough to be one **tracer bullet**.
+- **Ownership** — which **principal** may read or change the thing: owner-scoped by subject, role-gated, or unauthenticated.
 - **Storage** — columns, keys, indexes, what is nullable, what is unique, what cascades on delete.
-- **API contract** — path and verbs, request and response schemas, which inputs are rejected and
-  with which status code.
+- **API contract** — RPC methods and messages, which inputs are rejected, Connect codes and stable reasons.
 - **Seams** — what has to swap later, and what the boundary looks like (an `AUTH_PROVIDER`-style
   provider switch, an interface defined at the consumer).
 - **Failure and volume** — expected size, behaviour when the database is unreachable, what retries.

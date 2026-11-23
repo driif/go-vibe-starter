@@ -31,12 +31,12 @@ order. This is the cheapest moment to correct a misreading. Wait for the go-ahea
 ## 3. Build it **red-green**
 
 `tdd` owns the loop: failing test first, minimum code to pass, then refactor. `go-feature` owns the
-shape of the work — the slice from migration through sqlc query, OpenAPI, handler, route and test,
+shape of the work — the slice from migration through sqlc query, protobuf contract, handler, route and test,
 with its own reference files for each step. Invoke both; they carry the detail this skill does not
 restate.
 
 Between steps, run the narrow command rather than the whole suite:
-`go test -race ./internal/api/handlers/`. Speed here is what keeps the loop tight.
+`go test -race ./internal/rpc/`. Speed here is what keeps the loop tight.
 
 Surface each decision the ticket left open — a column type, a status code, an error shape — as a
 one-line question with your recommended answer, and keep building once it is answered.
@@ -44,19 +44,19 @@ one-line question with your recommended answer, and keep building once it is ans
 ## 4. Validate
 
 ```bash
-make test    # go test -race ./...
-make lint
+make check    # go test -race ./...
+make check
 make gen && git diff --exit-code   # only if the work touched generated sources
 ```
 
 Both of the first two exit 0 before you go on. The third catches **drift** when the ticket touched
-`oapi/openapi.yaml`, `sql/queries/` or `migrations/`.
+`proto/api/v1/<domain>.proto`, `sql/queries/` or `sql/migrations/`.
 
 ## 5. Review
 
 Run `code-review` over the diff. Every finding is re-read at `file:line` and marked **confirmed** or
-false positive before anything is edited. Fix the confirmed ones, then run `make test` and
-`make lint` again. Report the false positives with the reason each was dismissed rather than
+false positive before anything is edited. Fix the confirmed ones, then run `make check` and
+`make check` again. Report the false positives with the reason each was dismissed rather than
 dropping them silently.
 
 ## 6. Finish

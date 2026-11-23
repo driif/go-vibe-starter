@@ -1,127 +1,104 @@
-# AGENTS.md — go-vibe-starter
+# AGENTS.md
 
-The single source of truth for any AI agent working in this repo (Claude Code, Codex, Pi, opencode).
-Read it before making changes. `CLAUDE.md` imports it.
-
----
+The single source of truth for agents working in this repo. Read before making changes.
+`CLAUDE.md` imports this file.
 
 ## 1. Hard constraints
 
-- **Never add AI co-authorship to commits, PRs, or issues** — no `Co-Authored-By: Claude …`, no
-  `🤖 Generated with …`, no mention of Claude, Anthropic, or AI assistance anywhere in a commit
-  message, PR body, or issue body.
-- **Never hand-edit generated files** — `internal/api/*.gen.go` (from `oapi/openapi.yaml`) and
-  `internal/db/gen/*.go` (from `sql/queries/*.sql`). Change the source, run `make gen`.
-- **Run migrations through the CLI** — `make migrate-up`, never ad-hoc SQL against the database.
-- **Write minimal code** — the simplest thing that works. No premature abstractions, no speculative
-  features, no config knobs nobody asked for.
-- **Comment sparingly** — see [`docs/agents/go-style.md`](docs/agents/go-style.md). A comment per
-  change is a defect, not thoroughness.
-- **Ask before implementing** when requirements are unclear or several approaches are reasonable.
-- **Validate before claiming done** — `make test` and `make lint` both green.
+- Never add AI co-authorship, attribution trailers, or generated-with lines to commits, PRs or issues.
+- Never hand-edit generated `internal/gen/**`, `internal/db/gen/**` or `agents/skills/**`.
+  Change proto, SQL or canonical skills and run the corresponding generator.
+- Apply migrations through `make migrate-up`; no ad-hoc schema changes.
+- Write minimal code and comment only when the reason is not clear from the code.
+- Ask when requirements are unclear. Work within decisions already approved.
+- Validate before claiming done: `make check` must pass.
 
 ## 2. Tech stack
 
-Production-ready Go web server for rapid prototyping. Explicit, understandable infrastructure with
-minimal boilerplate; LLM-first (SQL over ORMs, explicit over magic).
+Go | stdlib ServeMux + go-pkgz/routegroup | Connect v2 + buf + protovalidate | pgx/v5 + sqlc |
+goose | Cobra | Keycloak OIDC | slog JSON | PostgreSQL | testify + testcontainers-go.
+Read [stack notes](docs/agents/stack-notes.md) before writing transport code: Connect v2 and
+routegroup APIs differ from older material. Go and generator versions live in `go.mod` and Makefile.
 
-Go 1.25 | chi v5 | sqlc | oapi-codegen (chi-server) | goose | Cobra CLI | Keycloak OIDC (optional) |
-`log/slog` JSON | PostgreSQL | testify + testcontainers-go | go-pkgz/rest
+## 3. Layout
 
-## 3. Entry points
+This is the only maintained package map.
 
-| Purpose | Path |
+| Path | Owns |
 |---|---|
-| CLI → server startup | `main.go` → `cmd/root.go` → `cmd/run.go` |
-| Server bootstrap + middleware stack | `internal/server/server.go` |
-| Env-driven config | `internal/server/config/server_config.go` |
-| Auth config + startup validation | `internal/server/config/auth_config.go` |
-| Route hub (one file per domain) | `internal/api/router/routes.go` |
-| Auth middleware + role guards | `internal/server/auth/auth.go` |
-| Error response shape | `internal/server/errs/error.go` |
-| OpenAPI spec | `oapi/openapi.yaml` |
-| Test helpers | `internal/server/test/` |
-| **Worked example of a feature** | the `notes` slice — see §8 |
+| `main.go`, `cmd/` | process entry point, run, db migration and probe commands |
+| `proto/api/v1/` | wire contract |
+| `internal/gen/` | protobuf and Connect generated output |
+| `internal/domain/<domain>/` | stores and business rules; no transport imports |
+| `internal/rpc/<domain>/` | thin handlers, request/store/response mapping |
+| `internal/rpc/interceptor/` | errors, validation and RPC logging concerns |
+| `internal/server/server.go` | HTTP stack construction and lifecycle |
+| `internal/server/routes.go` | hub calling one mount function per domain |
+| `internal/server/routes_<domain>.go` | mount file with that domain's dependencies |
+| `internal/server/middleware/` | auth, access logs, CORS, request ids, metrics and recovery |
+| `internal/server/config/` | typed environment parsing and validation |
+| `internal/identity/` | principal; Keycloak verifier and test issuer in subpackages |
+| `internal/apperr/` | transport-independent domain errors |
+| `internal/reqlog/` | per-request logger and result carrier |
+| `internal/db/` | pool, migrations and startup schema check |
+| `internal/db/gen/` | sqlc output |
+| `sql/migrations/`, `sql/queries/`, `sql/embed.go` | schema, queries, embedded migration FS |
+| `internal/test/` | Postgres and real HTTP/OIDC integration test harness |
+| `frontend/` | reserved for a separately chosen frontend stack |
 
 ## 4. Code generation
 
-| Edited | Run |
+| Source changed | Command |
 |---|---|
-| `oapi/openapi.yaml` | `make gen-oapi` |
-| `sql/queries/*.sql` | `make sqlc` |
-| `migrations/*.sql` | nothing — goose applies it via `make migrate-up` |
+| `proto/**` | `make gen-proto` |
+| `sql/queries/**`, `sql/migrations/**` | `make sqlc` |
 | `.claude/skills/**` | `make sync-skills` |
+| all generated Go | `make gen` |
+
+Commit sources and generated output together. Generation deletes the old output first.
 
 ## 5. Commands
 
-```
-make help         # list every target
-make init         # bootstrap a new project from this template
-make build / run  # compile to bin/app / build and start
-make test         # go test -race ./...
-make cover        # coverage profile + summary
-make lint         # golangci-lint run
-make fmt          # gofmt + goimports
-make gen          # gen-oapi + sqlc
-make migrate-up   # apply pending migrations
-make db-up/db-down# docker compose up -d / down
-make labels       # create the GitHub issue labels the skills use
-make sync-skills  # mirror .claude/skills -> agents/skills
-make tools        # install the pinned codegen and lint tools
-```
+Run `make help` for the complete list. `make tools` installs the pinned tools. `make init`
+initializes a derived project. `make dev-up` starts Postgres; `make keycloak-up` starts dev
+Keycloak. `make migrate-up`, `make migrate-down`, `make migrate-status` operate embedded
+migrations. `make run` builds and starts the server. `make check` runs drift, lint, race tests
+and the skills mirror check. `make vuln`, `make image-smoke`, `make smoke` check advisories,
+the non-root image and real Keycloak respectively. `make labels` creates issue labels.
 
 ## 6. Configuration
 
-Environment variables only, no config files. `.env.local` is loaded outside tests.
-Every variable with its default: [`.env.example`](.env.example) and
-[`docs/agents/env-reference.md`](docs/agents/env-reference.md) — keep both in sync when you add one.
+Environment variables only; process values precede `.env.local`, then built-in defaults.
+Make creates `.env.local` from `.env.example` for local run/migration targets. Tests ignore it.
+Keep [.env.example](.env.example) and [the reference](docs/agents/env-reference.md) synchronized.
 
-The non-obvious one:
-
-- **`AUTH_PROVIDER`** (default `none`) — `none` skips token verification and runs every request as a
-  static dev principal (`AUTH_DEV_SUBJECT`, `AUTH_DEV_ROLES`), so a fresh clone boots with no
-  external dependencies. `keycloak` verifies bearer tokens against the realm's JWKS. Startup
-  **fails** unless `APP_ENVIRONMENT` is one of `development`, `dev`, `local`, `test`. The check is
-  an allow-list, so `prod`, `Production` or `staging` refuse to start rather than silently serving
-  every request as the dev principal.
-
-Handlers reach the caller the same way under both providers:
-`auth.PrincipalFromContext(r.Context())`. `auth.TokenFromContext` only returns a token under
-`keycloak`. The middleware itself comes from `s.Authenticator()`.
+`AUTH_PROVIDER` has no default; `APP_ENVIRONMENT` defaults to `production`. Provider `none`
+is permitted only in `development`, `dev`, `local`, `test` and returns the `local-dev` principal
+with no roles unless explicitly configured. `keycloak` requires issuer and audience. Both require
+`DATABASE_URL`. Handlers read the caller through `identity.FromContext(ctx)`.
 
 ## 7. Go conventions
 
-The short version — the depth is in [`docs/agents/go-style.md`](docs/agents/go-style.md).
+See [Go style](docs/agents/go-style.md). Use early returns, immediate error checks, `%w` where
+it adds debugging context, structured slog with snake_case keys, and lowercase in-code comments.
+Use consumer-defined small interfaces only where a real test double or boundary needs them.
+Handlers translate between the RPC and store; rules and queries live in domain packages.
+Return `apperr` errors; the error interceptor maps them to wire codes and ErrorInfo reasons.
 
-- **Logging:** `log/slog`, structured, `snake_case` keys. Never `fmt.Println`.
-- **HTTP:** chi v5; middleware are `func(http.Handler) http.Handler`.
-- **Handlers:** in `internal/api/handlers`; errors via `errs.Write(w, status, err)`; path params via
-  `chi.URLParam`; routes registered in `internal/api/router/routes_<domain>.go`.
-- **Interfaces:** defined in the **consumer** package, 1–3 methods, never for a single
-  implementation with no test double.
-- **Control flow:** return early; validate at the top.
-- **Errors:** check immediately, wrap with `%w` only where the context helps debugging.
-- **Comments:** lowercase in-code, godoc on exported identifiers, no history comments.
-- **Tests:** table-driven, testify `require`/`assert`, one `_test.go` per source file, `t.Helper()`,
-  `go test -race`.
-- **Database:** parameterized SQL, scoped by owner in the query itself.
-- **Commits/PRs:** no trailers, no "Generated with" lines, no "Test plan" sections.
+HTTP middleware runs before body decoding and can reject unauthenticated requests cheaply.
+Interceptors operate on decoded RPC messages and return RPC errors. See [request path](docs/agents/request-path.md).
+Use parameterized owner-scoped SQL and `pgx.BeginFunc` for transactions. Tests use the harness in
+`internal/test` with real Postgres, external test packages, generated clients and `t.Parallel()`.
+Docker is a test prerequisite. Use table cases, testify require/assert, `t.Helper()` and `t.TempDir()`.
+No attribution trailers or "Test plan" sections in commits/PRs.
 
 ## 8. The worked example
 
-`notes` is a complete reference vertical slice, marked `// DEMO:` in every file and removed by
-`make init`. When building a feature, copy its shape:
-
-```
-migrations/0001_notes.sql          schema
-sql/queries/notes.sql              queries      -> internal/db/gen (generated)
-oapi/openapi.yaml                  API surface  -> internal/api/*.gen.go (generated)
-internal/api/handlers/notes.go     handler
-internal/api/handlers/notes_test.go tests
-internal/api/router/routes_notes.go route registration
-```
-
-The `go-feature` skill walks this path step by step.
+The permanent `whoami` slice shows the [contract](proto/api/v1/whoami.proto),
+[handler](internal/rpc/whoami/whoami.go), [mount](internal/server/routes_whoami.go) and
+[test](internal/rpc/whoami/whoami_test.go). It reads the authenticated caller without persistence.
+The `go-feature` skill provides static persistence snippets: migration → queries → domain store →
+handler → mount → integration test. Follow one thin path through all required layers before widening.
 
 ## 9. Development workflow
 
@@ -168,8 +145,8 @@ read the identical mirror at `agents/skills/<name>/SKILL.md`.
 
 | Skill | Covers |
 |---|---|
-| `go-feature` | The vertical slice: migration → sqlc → OpenAPI → handler → route → test |
-| `go-middleware` | Adding or changing a chi middleware |
+| `go-feature` | The vertical slice: proto → migration → sqlc → domain → handler → mount → test |
+| `go-middleware` | HTTP middleware and Connect interceptors |
 | `tdd` | Go tests, test-first, and what makes one worth keeping |
 | `code-review` | Two-axis review (standards, spec) over the six Go reviewers |
 | `diagnosing-bugs` | Reproduce → minimize → hypothesize → instrument → fix → verify |
@@ -192,4 +169,4 @@ marked CONFIRMED or FALSE POSITIVE before anything is fixed. Severity: critical 
 ## 12. Editing skills
 
 Edit `.claude/skills/` only, then run `make sync-skills` to regenerate the `agents/skills/` mirror.
-Never hand-edit the mirror. The `writing-for-agents` skill covers how to write one.
+Never hand-edit the mirror. `make check` fails when it is stale. The `writing-for-agents` skill covers how to write one.

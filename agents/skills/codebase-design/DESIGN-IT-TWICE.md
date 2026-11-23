@@ -35,7 +35,7 @@ should end up hidden behind the seam.
 Each design comes back as:
 
 1. The exported surface — signatures, plus invariants, error modes, context effects.
-2. A call site in Go showing how a handler in `internal/api/handlers` would use it.
+2. A call site in Go showing how a handler in `internal/rpc` would use it.
 3. What the implementation hides.
 4. Its adapters, and how a test reaches it.
 5. Where its leverage is thin.

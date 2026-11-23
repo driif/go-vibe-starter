@@ -1,0 +1,35 @@
+name: Template smoke
+on:
+  pull_request:
+  push:
+    branches: [main]
+  schedule:
+    - cron: '17 5 * * 1'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  init:
+    if: github.repository == 'driif/go-vibe-starter'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-latest
+            command: scripts/template-smoke.sh --module example.com/acme/smoke-svc --name smoke-svc
+          - runner: ubuntu-latest
+            command: scripts/template-smoke.sh --module git.example.org/platform/teams/billing-service --name billing-service --keep-demo
+          - runner: macos-latest
+            command: /bin/bash scripts/template-smoke.sh --module example.com/acme/smoke-svc --name smoke-svc --no-docker
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7.1.0
+        with:
+          go-version-file: go.mod
+      - run: ${{ matrix.command }}

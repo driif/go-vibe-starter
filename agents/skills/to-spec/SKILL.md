@@ -18,8 +18,8 @@ Prerequisite: `/setup-project` (the `spec` label and the issue forms come from t
 ## 1. Collect what is settled
 
 Re-read the conversation for the decisions already made. Then read the code the change lands in —
-the handlers in `internal/api/handlers`, the routes in `internal/api/router`, the schema in
-`oapi/openapi.yaml`, the queries in `sql/queries`. Write in the repo's own vocabulary: the terms in
+the handlers in `internal/rpc`, the routes in `internal/server`, the schema in
+`proto/api/v1/<domain>.proto`, the queries in `sql/queries`. Write in the repo's own vocabulary: the terms in
 `CONTEXT.md`, and the decisions already recorded in `docs/adr/` are constraints, not options.
 
 Done when you can name, without asking the user anything: what hurts today, what is true once this
@@ -30,7 +30,7 @@ ships, and where the boundary is.
 Say which **seam** the change moves through and how it gets tested there — an existing seam beats a
 new one, and the highest seam beats a lower one. In this repo the usual answer is the HTTP boundary
 exercised with `httptest` against the router, with the `principal` supplied by the test helpers in
-`internal/server/test/`. A new seam is a decision: state it in the spec and flag it in the draft.
+`internal/test/`. A new seam is a decision: state it in the spec and flag it in the draft.
 
 ## 3. Draft the body
 

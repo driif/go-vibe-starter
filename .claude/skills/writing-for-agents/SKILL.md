@@ -67,7 +67,7 @@ Push too little down and the top bloats; push too much and you hide material the
 
 **Progressive disclosure** is the move down the ladder so the top stays legible. Branching is the
 cleanest test: inline what every branch needs, disclose what only some branches reach. `go-feature`
-keeps the ordered slice in `SKILL.md` and discloses `SQLC.md`, `OPENAPI.md` and the rest, because a
+keeps the ordered slice in `SKILL.md` and discloses `SQLC.md`, `PROTO.md` and the rest, because a
 given feature touches only some of them in depth.
 
 **Co-location** is the within-file companion: the ladder decides how far down a piece sits,
@@ -82,12 +82,12 @@ Attention thins across the excess. The cure is the ladder. Keep every `SKILL.md`
 Every step ends on a **completion criterion**, the condition telling the agent the work is done.
 
 - **Clarity** — can the agent tell done from not-done? "Tests look fine" invites **premature
-  completion**; "`make test` and `make lint` both exit 0" does not. The visible steps still ahead
+  completion**; "`make check` exits 0" does not. The visible steps still ahead
   supply the pull to rush; the criterion's clarity is the resistance. Sharpen the bound first, it is
   local and cheap. Only if it stays fuzzy *and* you observe the rush, split the sequence so the later
   steps sit behind a real context boundary (a hand-off or a subagent dispatch; an inline call leaves
   them in context and clears nothing).
-- **Demand** — how much it requires. "Every handler in `internal/api/handlers` accounted for" forces
+- **Demand** — how much it requires. "Every handler in `internal/rpc` accounted for" forces
   thorough work where "review the handlers" does not. Demand drives the digging done inside a step,
   latent in the wording rather than written as its own step, and it is not step-bound: "every
   finding verified at `file:line`" binds flat reference just as "every step done" binds a sequence.
@@ -96,7 +96,7 @@ The strongest criteria are both checkable and exhaustive.
 
 **Do not write a step that asks the agent to verify, re-check or double-check its own work.** It
 already does; a second instruction compounds with the behaviour and buys tokens, not quality. A
-completion criterion the agent can run (`make test` exits 0) is the whole of what a skill owes here.
+completion criterion the agent can run (`make check` exits 0) is the whole of what a skill owes here.
 The exception is verification of something *another* agent produced — `code-review`'s `file:line`
 gate earns its place because the reviewer and the verifier are different contexts.
 
@@ -120,5 +120,5 @@ and pruning **sediment** and **no-ops**. All of it in [`LANGUAGE.md`](LANGUAGE.m
 writing prose, not after.
 
 One rule stays here because it is a guardrail: state the target behaviour, never the ban. A
-prohibition earns its place only where no positive phrasing exists ("never hand-edit `*.gen.go`"),
+prohibition earns its place only where no positive phrasing exists ("never hand-edit `*.pb.go` and Connect output"),
 and it travels with the positive target it protects.

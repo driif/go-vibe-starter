@@ -29,7 +29,7 @@ settled in the area you are about to touch.
 ## 2. Scan for friction
 
 Read the code in scope — on Claude, dispatch a read-only subagent to walk it and report back;
-elsewhere, walk it inline. Explore rather than run a checklist, and note where reading hurts:
+elsewhere, walk it inline. Explore rather than run a checklist, and task where reading hurts:
 
 - Understanding one concept means bouncing between several packages.
 - A package whose exported surface is nearly as complicated as what it hides.

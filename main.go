@@ -1,11 +1,5 @@
 package main
 
-import (
-	"github.com/driif/go-vibe-starter/cmd"
-	// Import postgres driver for database/sql package
-	_ "github.com/lib/pq"
-)
+import "github.com/driif/go-vibe-starter/cmd"
 
-func main() {
-	cmd.Execute()
-}
+func main() { cmd.Execute() }

@@ -36,7 +36,6 @@ body:
       label: Validation commands
       description: The exact commands that prove this slice works.
       value: |
-        make test
-        make lint
+        make check
     validations:
       required: true

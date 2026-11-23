@@ -26,17 +26,15 @@ Done when both exit 0 and the second prints `owner/repo`.
 - No repository detected → the clone has no GitHub remote yet. The user runs `gh repo create` (or
   adds the remote), then re-runs this skill.
 
-## 2. The module path is this project's
+## 2. Init has run
 
 ```sh
-awk '$1 == "module" { print $2 }' go.mod
+test -e scripts/template-smoke.sh
 ```
 
-Done when it prints anything other than `github.com/driif/go-vibe-starter`.
-
-Still the template path → `make init` has not run. It renames the module, rewrites the imports,
-strips the `DEMO` slice, and resets `README.md`, `CONTEXT.md`, `docs/plans/` and `docs/adr/`.
-Have the user run it, then resume at step 3 — `make init` undoes step 4's work if it runs after.
+Done when the file is absent. Present means `make init` has not run. Init renames the module and
+project, removes the reference slice unless kept, removes licence and template-only files, and
+replaces README. It leaves CONTEXT.md intact. Run it before continuing.
 
 ## 3. The label vocabulary exists
 
@@ -55,17 +53,15 @@ second run only refreshes colours and descriptions.
 grep -n '^| | |' CONTEXT.md
 ```
 
-A match means the ubiquitous-language table is still the empty stub `make init` wrote. Fill it:
+A match means the ubiquitous-language table is still the empty stub. Fill it:
 
 1. Read the code for the terms this project already uses — the domain packages under `internal/`,
-   the schemas in `oapi/openapi.yaml`, the tables in `migrations/`, the queries in `sql/queries/`.
-   Add the terms the repo itself supplies: `principal`, `the slice`, `hub`, and any `DEMO` naming
-   that survived.
+   the contracts in `proto/api/v1/`, the tables in `sql/migrations/`, the queries in `sql/queries/`.
+   Add the terms the repo itself supplies: `principal`, `the slice`, `hub`, and `harness`.
 2. Propose the rows to the user as a table, one term and one meaning per row, and let them cut,
    rename and correct before anything is written. The words here become the words every later spec,
    ticket and handler uses, so the user owns them.
-3. Write the agreed rows into the **Ubiquitous language** table. Leave the **Module map** as it is
-   unless packages have been added or removed since `make init`.
+3. Write the agreed rows into the **Ubiquitous language** table. The layout lives in AGENTS.md §3.
 
 Done when the table holds at least the terms a stranger would have to ask about, and the stub row
 is gone. No match on the `grep` means someone already filled it — read it, say what is there, and

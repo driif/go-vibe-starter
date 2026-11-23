@@ -12,13 +12,13 @@ bug on demand.
 Build one command that fails on demand. In descending order of preference:
 
 1. A Go test at the package where the bug lives:
-   `go test -race -count=1 -run TestNotesGetRejectsForeignOwner ./internal/api/handlers`.
-2. An `httptest` request through the real chi route, so middleware and the `principal` are in play.
+   `go test -race -count=1 -run TestWhoAmI ./internal/rpc/whoami`.
+2. A generated-client request through `test.NewServer`, so middleware and the `principal` are in play.
 3. `curl` against `make run`, with the request body the reporter actually sent.
-4. A `cmd/` invocation: `./bin/app db migrate up`, or whatever subcommand carries the failure.
+4. A `cmd/` invocation: `make migrate-up`, or whatever subcommand carries the failure.
 
-`-count=1` defeats the test cache, so green means a real run. Reach for `test.E2e` in
-`internal/server/test` when the bug needs a real Postgres.
+`-count=1` defeats the test cache, so green means a real run. Reach for `test.NewServer` in
+`internal/test` when the bug needs a real Postgres.
 
 The command qualifies when it:
 
@@ -62,13 +62,12 @@ yesterday").
 One probe per prediction, one variable changed at a time.
 
 - **Targeted `slog` at debug level** on the boundary that separates two hypotheses, values in
-  attributes: `slog.Debug("[dbg-a4f2] note lookup", "owner", owner, "id", id)`. `cmd/run.go` installs
+  attributes: `slog.Debug("[dbg-a4f2] task lookup", "owner", owner, "id", id)`. `cmd/run.go` installs
   the default handler at `slog.LevelInfo`, so a debug probe is dropped until you lower it — in a test,
   `slog.SetDefault(slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelDebug})))`.
 - **A focused test** asserting the intermediate value, which often survives as the regression test.
 - **The request logger**, for request and response shape without touching code:
-  `SERVER_LOGGER_LOG_REQUEST_BODY=true`, `SERVER_LOGGER_LOG_RESPONSE_BODY=true`,
-  `SERVER_LOGGER_LOG_REQUEST_HEADER=true`.
+  `LOG_LEVEL=DEBUG`. Tokens and bodies remain excluded.
 - **`go test -race`** for anything involving shared state; `/debug/pprof/goroutine?debug=2` on a
   running server for a hang or a leak.
 
@@ -92,7 +91,7 @@ pinned down.
 
 - The regression test fails on the old code and passes on the new. Prove it: `git stash`, run, then
   `git stash pop`.
-- `make test` and `make lint` both exit 0.
+- `make check` exits 0.
 - The phase-1 command, run against the original un-minimized scenario, is green.
 - `grep -rn "\[dbg-" --include='*.go' .` prints nothing.
 - The confirmed cause is written into the issue comment or the change description in one sentence,
