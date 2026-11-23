@@ -4,7 +4,8 @@ set -euo pipefail
 image=$1
 name=$2
 version=$3
-container="${name}-smoke"
+project=${COMPOSE_PROJECT_NAME:-$name}
+container="${project}-smoke"
 created=0
 cleanup() {
   if [ "$created" -eq 1 ]; then
@@ -25,7 +26,7 @@ fi
 grep -F 'AUTH_PROVIDER is required' "$output"
 rm -f "$output"
 docker compose up -d --wait postgres
-runtime=(--network "${name}_default" -e APP_ENVIRONMENT=development -e AUTH_PROVIDER=none -e 'DATABASE_URL=postgres://app:app@postgres:5432/app?sslmode=disable')
+runtime=(--network "${project}_default" -e APP_ENVIRONMENT=development -e AUTH_PROVIDER=none -e 'DATABASE_URL=postgres://app:app@postgres:5432/app?sslmode=disable')
 docker run --rm "${runtime[@]}" "$image" db migrate up
 docker run -d --name "$container" "${runtime[@]}" "$image" >/dev/null
 created=1

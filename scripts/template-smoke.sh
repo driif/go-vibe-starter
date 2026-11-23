@@ -17,6 +17,8 @@ while [ "$#" -gt 0 ]; do
 done
 [ -n "$module" ] && [ -n "$name" ] && [ "$name" != app ] || { echo 'smoke: supply a module and a name different from app' >&2; exit 2; }
 dest=$(mktemp -d)
+# Only this temporary project may be removed by the cleanup trap.
+export COMPOSE_PROJECT_NAME="template_smoke_$(basename "$dest" | tr -cd '[:alnum:]' | tr '[:upper:]' '[:lower:]')"
 passed=0
 compose_started=0
 cleanup() {
