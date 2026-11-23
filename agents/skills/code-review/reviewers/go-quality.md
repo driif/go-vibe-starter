@@ -15,19 +15,17 @@ on defects.
 
 1. **Errors.** Every returned error is checked at the call site — a `_ =` on anything but a
    deliberate writer is a finding. Comparison uses `errors.Is` / `errors.As`, never a string match.
-   `sql.ErrNoRows` is mapped to a 404 rather than a 500. Wrapping adds context once, not at every
-   layer, and no error is swallowed into a log line and then ignored. In a handler, every
-   `errs.Write(w, status, err)` is followed by `return`; a missing `return` writes a second body.
-2. **Nil and zero values.** The `ok` from `auth.PrincipalFromContext` respected before the
-   `*keycloak.Principal` is dereferenced. A nil map written to, a nil pointer dereferenced on the
-   error path, a `*sql.DB` used before `Initialize`, an empty slice indexed at `[0]`, a typed nil
+   `pgx.ErrNoRows` is mapped in the store to a not-found domain error. Wrapping adds context once, not at every
+   layer, and no error is swallowed into a log line and then ignored. Handlers return errors; the interceptor maps them without leaking internal messages.
+2. **Nil and zero values.** A nil `identity.FromContext` result is handled before dereferencing the principal. A nil map written to, a nil pointer dereferenced on the
+   error path, a `*pgxpool.Pool` used before construction, an empty slice indexed at `[0]`, a typed nil
    pointer stored in an interface and compared against `nil`.
 3. **Boundaries.** Off-by-one, wrong comparison operator, an inverted condition, an early `return`
    that skips a required write, a `break` that only leaves the inner loop.
 4. **Context.** `context.Context` is the first parameter and is threaded from `r.Context()` to the
    query. A long operation carries a timeout. `context.Background()` inside a request path drops
    client cancellation and is a finding.
-5. **Resources.** Every `*sql.Rows`, response body and file is closed on all paths, `defer` included
+5. **Resources.** Every `pgx.Rows`, response body and file is closed on all paths, `defer` included
    on the error branches. A `defer` inside a loop accumulates until the function returns.
 6. **Concurrency.** Goroutines that outlive the request, a `WaitGroup` whose `Add` runs after the
    goroutine starts or that can never reach zero, a channel send with no receiver, package-level
@@ -39,19 +37,18 @@ on defects.
 ## Security
 
 1. **Authorization.** Every route that touches user data sits behind the authenticator in its
-   `internal/api/router/routes_*.go` — only `/health` and `/ready` sit outside the authenticated
-   group — and every query is scoped to the `principal` subject, the `owner_id` pattern in
-   `internal/api/handlers/notes.go`. A handler that trusts an id from the path or body without that
+   `internal/server/routes_*.go` — only `/healthz` and `/readyz` sit outside the authenticated
+   group — and every query is scoped to the `principal` subject, the `owner` predicate in domain queries. A handler that trusts an id from the path or body without that
    scoping is `critical`, as is a config path that leaves `AUTH_PROVIDER=none` reachable under
    `APP_ENVIRONMENT=production`.
 2. **Injection.** SQL reaches the database through sqlc-generated, parameterized queries. A
    hand-built query string, a `fmt.Sprintf` into SQL, or a user-controlled path joined without
    `filepath.Clean` is a finding.
-3. **Input validation.** Lengths, formats and enums are checked at the top of the handler and match
-   the constraints declared in `oapi/openapi.yaml`.
+3. **Input validation.** Lengths, formats and enums are checked through validation and match
+   the constraints declared in `proto/api/v1/<domain>.proto`.
 4. **Secrets.** No credential, token or key is hardcoded, logged, or carried in an error returned to
    the client. `slog` calls near auth are checked for a token or an `Authorization` header value.
-5. **Disclosure.** `errs.Write` details describe what the caller did wrong; internal messages, driver
+5. **Disclosure.** `apperr.New` details describe what the caller did wrong; internal messages, driver
    errors and stack detail stay in the log.
 
 ## Report

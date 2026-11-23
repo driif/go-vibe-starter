@@ -1,0 +1,20 @@
+syntax = "proto3";
+
+package api.v1;
+
+// WhoAmIService returns the caller's principal.
+service WhoAmIService {
+  rpc WhoAmI(WhoAmIRequest) returns (WhoAmIResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+  }
+}
+
+message WhoAmIRequest {}
+
+message WhoAmIResponse {
+  string subject = 1;
+  string username = 2;
+  string email = 3;
+  string name = 4;
+  repeated string roles = 5;
+}

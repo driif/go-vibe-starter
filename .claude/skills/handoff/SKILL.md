@@ -14,7 +14,7 @@ document toward that.
 ## Where it goes
 
 ```bash
-$TMPDIR/go-vibe-starter-handoff-$(date +%Y%m%d-%H%M).md
+${TMPDIR:-/tmp}/$(basename "$PWD")-handoff-$(date +%Y%m%d-%H%M).md
 ```
 
 Outside the repo: `docs/plans/` is ralphex's execution directory, and a handoff sitting there shows
@@ -24,12 +24,12 @@ conversation as well so it survives even if the file is lost.
 ## What it holds
 
 Reference by number and path — `#41`, `docs/plans/20260809-projects-api.md`,
-`docs/adr/0003-auth-provider.md`, `internal/api/handlers/projects.go:88`. The next session can open
+`docs/adr/0003-auth-provider.md`, `internal/rpc/projects/projects.go:88`. The next session can open
 any of them. Restating their contents is what makes handoffs long and stale at the same time.
 
 - **Goal** — one sentence on what the work is for.
 - **Current state** — done, in progress, untouched. Name the last command run and its result
-  (`make test` green, `make lint` clean, three handler tests failing).
+  (`make check` green, three handler tests failing).
 - **Key decisions** — each one line, each with its why. Decisions already in an ADR or a `decision`
   issue get a pointer instead.
 - **Next action** — the single exact thing to do next, specific enough to start on without a choice:

@@ -1,6 +1,6 @@
 ---
 name: writing-style
-description: Prose that lands in the project's permanent record. Use when writing a commit message, a PR title or description, a GitHub issue body (`gh issue create`), or a code-review comment.
+description: Writes prose that lands in the project's permanent record. Use when writing a commit message, a PR title or description, a GitHub issue body, or a code-review comment.
 ---
 
 Governs what this repo records about its own work: commits, PRs, issues, review comments. Reference
@@ -23,7 +23,7 @@ content.
 
 Brief, direct, specific. State opinions plainly — "this interface has one implementation, drop it"
 beats "we might consider possibly simplifying here". Concrete anchors carry the weight:
-`internal/api/handlers/notes.go:42`, commit `92891fa`, issue `#17`. Vary sentence length; a run of
+`internal/rpc/tasks/tasks.go:42`, commit `92891fa`, issue `#17`. Vary sentence length; a run of
 em-dash asides reads as machine cadence.
 
 ## Commit messages
@@ -39,7 +39,7 @@ em-dash asides reads as machine cadence.
 fix: return 401 for unsupported auth scheme, keep 400 for malformed token
 
 RFC 6750 treats an unknown scheme as an authentication failure, not a bad
-request. internal/server/auth/auth.go:164 collapsed both onto 400, so
+request. internal/server/middleware/auth.go:42 collapsed both onto 400, so
 clients retried the same credentials instead of re-authenticating.
 
 Closes #17
@@ -50,7 +50,7 @@ Closes #17
 - Title is the commit subject when there is one commit; otherwise the subject the squash should get.
 - Open with why, in one or two sentences. Then what changed, grouped by area with paths.
 - Link the issue (`Closes #17`) and the ADR if a decision drove it (`docs/adr/0003-auth-provider.md`).
-- Verification goes in one line when it is not obvious — "`make test`, `make lint` and the codegen
+- Verification goes in one line when it is not obvious — "`make check` and the codegen
   `drift` check all clean". A checkbox "Test plan" section is noise; the reviewer reads CI.
 
 ## Issue bodies
@@ -63,7 +63,7 @@ the reader's behalf.
 
 ## Review comments
 
-- Anchor every comment at `file:line`, state the concrete failure ("`ListNotesByOwner` ignores
+- Anchor every comment at `file:line`, state the concrete failure ("`ListTasksByOwner` ignores
   `limit`, so a 10k-row owner buffers the whole table"), then the fix.
 - Report only `confirmed` findings — a suspicion re-read at the line and shown to be real. A hunch
   goes in the summary as a question, not in the diff as a demand.

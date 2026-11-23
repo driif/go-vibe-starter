@@ -2,11 +2,15 @@ version: "2"
 
 run:
   timeout: 3m
+  build-tags:
+    - smoke
 
 linters:
   default: standard
   enable:
     - bodyclose
+    - errorlint
+    - forbidigo
     - gocritic
     - gosec
     - misspell
@@ -14,6 +18,7 @@ linters:
     - noctx
     - prealloc
     - revive
+    - sloglint
     - unconvert
     - unparam
 
@@ -24,8 +29,12 @@ linters:
       exclude-functions:
         - (io.Closer).Close
         - (*database/sql.DB).Close
+        - (*github.com/jackc/pgx/v5.Conn).Close
         - (*os.File).Close
         - (*encoding/json.Encoder).Encode
+    forbidigo:
+      forbid:
+        - pattern: '^(fmt\.Print(|f|ln)|print|println)$'
     gosec:
       excludes:
         # unchecked errors are errcheck's beat; gosec duplicates the finding
@@ -62,12 +71,15 @@ linters:
         - name: unreachable-code
         - name: var-declaration
         - name: var-naming
+    sloglint:
+      key-naming-case: snake
+      no-mixed-args: true
 
   exclusions:
     generated: lax
     paths:
       - internal/db/gen
-      - '.*\.gen\.go$'
+      - internal/gen
     rules:
       # tests trade defensive plumbing for readability
       - path: '_test\.go'
@@ -77,20 +89,26 @@ linters:
           - gosec
           - noctx
           - unparam
-      # goose.RunContext needs a context this cobra command does not thread through yet
-      - path: 'cmd/db_migrate\.go'
-        text: 'SA1019'
+      # opening .env.local in the working directory is the whole job of the parser
+      - path: 'internal/server/config/dotenv\.go'
         linters:
-          - staticcheck
-      # opening a caller-supplied path is the whole job of the dotenv loader
-      - path: 'pkg/dotenv/'
+          - gosec
+      # the management listener serves pprof on purpose
+      - path: 'internal/server/management\.go'
+        text: 'G108'
         linters:
           - gosec
       # fixtures and harness helpers run before any request context exists
-      - path: 'pkg/tests/|internal/server/test/'
+      - path: 'internal/test/|internal/identity/testprovider/'
         linters:
           - gocritic
+          - gosec
           - noctx
+      # a handler method has the name of its RPC
+      - path: 'internal/rpc/'
+        text: 'method \w+ should be'
+        linters:
+          - revive
 
 formatters:
   enable:
@@ -100,4 +118,4 @@ formatters:
     generated: lax
     paths:
       - internal/db/gen
-      - '.*\.gen\.go$'
+      - internal/gen

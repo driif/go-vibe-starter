@@ -1,6 +1,6 @@
 ---
 name: resolving-merge-conflicts
-description: Resolving an in-progress git merge, rebase or cherry-pick that stopped on conflicts. Use when `git status` reports `both modified` or unmerged paths, when a file carries `<<<<<<<` markers, or when the user says a merge or rebase is stuck.
+description: Resolves an in-progress git merge, rebase or cherry-pick that stopped on conflicts. Use when git status reports both modified or unmerged paths, when a file carries conflict markers, or when the user says a merge or rebase is stuck.
 ---
 
 Resolve by **intent**, hunk by hunk. Land the operation; the working tree never goes back to where it
@@ -38,7 +38,7 @@ to resolve.
   trade-off in the merge or rebase commit body, naming the intent you dropped.
 - Keep the resolution to code one side already wrote. If making the merge correct needs behaviour
   neither side has, land the merge first and make that a separate commit.
-- Generated files resolve by regeneration, not by hand: take either side of `internal/api/*.gen.go`
+- Generated files resolve by regeneration, not by hand: take either side of `internal/gen/**`
   or `internal/db/gen/*.go`, then `make gen` and let `git diff --exit-code` prove no `drift`. Same
   shape for the skills mirror — resolve the canonical `.claude/skills/` copy, then `make sync-skills`
   to rebuild `agents/skills/`. For `go.sum`, resolve `go.mod` and run `go mod tidy`.
@@ -49,7 +49,7 @@ part you dropped.
 
 ## 4. Verify
 
-`make test` and `make lint` both exit 0, and `gofmt -l .` prints nothing. Expect breakage that no
+`make check` exits 0, and `gofmt -l .` prints nothing. Expect breakage that no
 single hunk shows: a clean per-hunk resolution still misses a call site the other side renamed, or a
 handler whose route moved to a `register*` file in the `hub`. Fix what the merge broke before
 finishing it.

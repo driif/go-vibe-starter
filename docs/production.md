@@ -1,256 +1,90 @@
-# Production Configuration Guide
+# Production deployment
 
-This guide walks through every setting you should review before deploying to production.
-The defaults are safe for local development — not for production.
+This template supplies a backend foundation. Deployment owns TLS, secret distribution, database
+backups, Keycloak operations, network policy and resource limits. See [authentication](auth.md).
 
----
+## Shipped behavior and checks
 
-## 1. Required env vars (no safe defaults)
+| Behavior | Where | Proven by |
+|---|---|---|
+| Connect, gRPC, gRPC-Web, JSON POST and safe GET; HTTP/1.1 and h2c | server / generated contract | protocol integration tests |
+| Fail-closed bearer auth; explicit local bypass | config / identity / HTTP middleware | auth tests, real Keycloak smoke, image smoke |
+| Domain-error mapping, panic recovery, input validation | RPC interceptors | error tests; validation failure once a message carries a rule |
+| JSON access logs with request id and RPC result | request logging middleware | access-log tests |
+| pgx pool, embedded migrations, startup schema check | database package / CLI | migration and schema integration tests |
+| Liveness/readiness, graceful shutdown, 4 MiB message limits | server | health, shutdown and body-limit tests |
+| Exact-origin CORS | HTTP middleware | CORS tests |
+| Duration histogram and pprof on opt-in private listener | management server | metrics and listener tests |
+| Static non-root image, version and built-in health probe | Dockerfile / CLI | `make image-smoke` |
+| Drift, lint, race tests, advisories and skills mirror | CI / Make | `make check`, `make vuln` |
 
-Set these before anything else. The server will start without them but will behave incorrectly.
+## Required configuration
 
-```env
-# Database
-PGHOST=your-db-host
-PGDATABASE=your-db-name
-PGUSER=your-db-user
-PGPASSWORD=<strong-random-password>
-PGSSLMODE=require
-
-# Keycloak
-KEYCLOAK_ISSUER_URL=https://your-keycloak-domain/realms/your-realm
-KEYCLOAK_AUDIENCE=your-backend-client
-KEYCLOAK_HTTP_TIMEOUT_SEC=5
-KEYCLOAK_CLOCK_SKEW_SEC=30
-
-# Management (if pprof is enabled)
-SERVER_MANAGEMENT_SECRET=<strong-random-secret>
-```
-
----
-
-## 2. Server port
-
-```env
-SERVICE_PORT=:8080
-```
-
-The server does not terminate TLS — run it behind a reverse proxy (nginx, Caddy, Traefik).
-The proxy should handle HTTPS on 443 and forward to this port over plain HTTP.
-
----
-
-## 3. Security headers
-
-The defaults are a reasonable starting point. For production, tune these:
-
-```env
-# Already on by default — keep them
-SERVER_SECURE_XSS_PROTECTION=1; mode=block
-SERVER_SECURE_CONTENT_TYPE_NOSNIFF=nosniff
-SERVER_SECURE_X_FRAME_OPTIONS=DENY              # stricter than SAMEORIGIN if no iframes needed
-
-# Enable HSTS — only do this when you are committed to HTTPS
-SERVER_SECURE_HSTS_MAX_AGE=31536000             # 1 year
-SERVER_SECURE_HSTS_EXCLUDE_SUBDOMAINS=false     # false = includeSubDomains
-SERVER_SECURE_HSTS_PRELOAD_ENABLED=false        # true only if you submit to HSTS preload list
-
-# Content Security Policy — tune to your actual needs
-SERVER_SECURE_CONTENT_SECURITY_POLICY=default-src 'self'
-SERVER_SECURE_CSP_REPORT_ONLY=false             # set true first to test without breaking things
-
-# Referrer Policy
-SERVER_SECURE_REFERRER_POLICY=strict-origin-when-cross-origin
-```
-
-> **HSTS warning**: Once a browser sees `max-age=31536000`, it will refuse HTTP connections
-> to your domain for a year. Only set this after your TLS setup is confirmed stable.
-
----
-
-## 4. Logger
-
-In development, DEBUG level with no body/header logging is fine.
-In production, switch to INFO and be careful about body logging — it can log PII.
-
-```env
-SERVER_LOGGER_LEVEL=INFO
-SERVER_LOGGER_REQUEST_LEVEL=INFO
-
-# Disable body/header logging unless actively debugging
-SERVER_LOGGER_LOG_REQUEST_BODY=false
-SERVER_LOGGER_LOG_REQUEST_HEADER=false
-SERVER_LOGGER_LOG_REQUEST_QUERY=false
-SERVER_LOGGER_LOG_RESPONSE_BODY=false
-SERVER_LOGGER_LOG_RESPONSE_HEADER=false
-```
-
-What is always logged (not configurable):
-- HTTP method, URL, status code, response size, duration
-- Request ID (from `X-Request-Id`)
-
----
-
-## 5. Database connection pool
-
-The defaults (`MaxOpenConns = NumCPU*2`, `MaxIdleConns = 1`) are conservative.
-For a production API under sustained load, tune based on your database's `max_connections` and
-the number of app instances you run.
-
-A practical starting point for a single instance against Postgres with `max_connections=100`:
-
-```env
-DB_MAX_OPEN_CONNS=20
-DB_MAX_IDLE_CONNS=5
-DB_CONN_MAX_LIFETIME_SEC=300    # 5 minutes — prevents stale connections
-```
-
-Rule of thumb: `(max_connections - 5 reserved for admin) / number_of_app_instances`.
-
----
-
-## 6. CORS
-
-The default uses `cors.AllowAll()`, which allows any origin. This is fine for development and
-internal APIs. For a public API, replace it in `server.go`:
-
-```go
-// Replace:
-r.Use(cors.AllowAll().Handler)
-
-// With:
-r.Use(cors.New(cors.Options{
-    AllowedOrigins:   []string{"https://your-frontend.com"},
-    AllowedMethods:   []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
-    AllowedHeaders:   []string{"Authorization", "Content-Type"},
-    AllowCredentials: true,
-    MaxAge:           300,
-}).Handler)
-```
-
----
-
-## 7. Pprof
-
-Disabled by default. Do not enable it in production unless you are actively profiling,
-and always gate it with a management secret.
-
-```env
-SERVER_PPROF_ENABLE=false                            # keep off unless profiling
-SERVER_PPROF_ENABLE_MANAGEMENT_KEY_AUTH=true         # always true if enabled
-SERVER_MANAGEMENT_SECRET=<strong-random-secret>      # required when key auth is on
-```
-
-When enabled, pprof is available at `/debug/pprof?mgmt-secret=<secret>`.
-
----
-
-## 8. Health check
-
-The starter does not include a `/healthz` route by default. Add one early in your route setup:
-
-```go
-r.Get("/healthz", func(w http.ResponseWriter, r *http.Request) {
-    w.WriteHeader(http.StatusOK)
-})
-```
-
-For a deeper check (e.g., database ping), inject `s.DB` and add a ping:
-
-```go
-r.Get("/healthz", func(w http.ResponseWriter, r *http.Request) {
-    if err := s.DB.PingContext(r.Context()); err != nil {
-        http.Error(w, "db unavailable", http.StatusServiceUnavailable)
-        return
-    }
-    w.WriteHeader(http.StatusOK)
-})
-```
-
----
-
-## 9. TLS / reverse proxy
-
-The server listens on plain HTTP. Put it behind a reverse proxy that handles TLS.
-
-**Caddy (simplest):**
-```
-your-domain.com {
-    reverse_proxy localhost:8080
-}
-```
-
-**Nginx:**
-```nginx
-server {
-    listen 443 ssl;
-    server_name your-domain.com;
-    ssl_certificate     /path/to/cert.pem;
-    ssl_certificate_key /path/to/key.pem;
-
-    location / {
-        proxy_pass http://localhost:8080;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Request-Id $request_id;
-    }
-}
-```
-
-Pass `X-Request-Id` from the proxy so request IDs are consistent across logs.
-
----
-
-## 10. Docker
-
-The included `Dockerfile` is a placeholder. A minimal production Dockerfile for this project:
-
-```dockerfile
-FROM golang:1.25-alpine AS builder
-WORKDIR /app
-COPY go.mod go.sum ./
-RUN go mod download
-COPY . .
-RUN go build -o bin/app ./
-
-FROM alpine:3.21
-RUN apk --no-cache add ca-certificates tzdata
-WORKDIR /app
-COPY --from=builder /app/bin/app .
-EXPOSE 8080
-CMD ["./app", "run"]
-```
-
-Set all env vars via your orchestrator (Kubernetes secrets, Docker secrets, etc.).
-Never bake secrets into the image.
-
----
-
-## Minimal production `.env` example
-
-```env
+```sh
 APP_ENVIRONMENT=production
-SERVICE_PORT=:8080
-
-SERVER_LOGGER_LEVEL=INFO
-SERVER_LOGGER_REQUEST_LEVEL=INFO
-
-SERVER_SECURE_HSTS_MAX_AGE=31536000
-SERVER_SECURE_X_FRAME_OPTIONS=DENY
-SERVER_SECURE_REFERRER_POLICY=strict-origin-when-cross-origin
-SERVER_SECURE_CONTENT_SECURITY_POLICY=default-src 'self'
-
-SERVER_PPROF_ENABLE=false
-
-PGHOST=db
-PGDATABASE=myapp
-PGUSER=myapp_user
-PGPASSWORD=<from-secrets>
-PGSSLMODE=require
-DB_MAX_OPEN_CONNS=20
-DB_MAX_IDLE_CONNS=5
-DB_CONN_MAX_LIFETIME_SEC=300
-
-KEYCLOAK_ISSUER_URL=https://auth.myapp.com/realms/myapp
-KEYCLOAK_AUDIENCE=backend
+AUTH_PROVIDER=keycloak
+KEYCLOAK_ISSUER_URL=https://identity.example.com/realms/company
+KEYCLOAK_AUDIENCE=api
+DATABASE_URL=postgres://api:REPLACE@db.example.com/api?sslmode=verify-full&pool_max_conns=20
+LISTEN_ADDR=:8080
 ```
+
+No auth provider or database URL is built in. Local bypass is refused outside the development
+allow-list. Process environment overrides `.env.local`; images contain no env file. Never deploy
+the local compose credentials. Configure trust roots for your database and identity provider.
+
+## Migrations
+
+Migrations are embedded in the binary. Run the image with `db migrate up` as one deployment job
+before rolling out replicas. The migration provider takes a Postgres session lock: connect directly
+to Postgres rather than through a transaction-mode pooler. Schema mismatch refuses startup. Back up
+before destructive schema changes; deploy backward-compatible changes before removing old fields.
+
+## Image and probes
+
+`make image` builds the image; `VERSION` sets its version stamp. It runs as uid/gid 65532 and includes
+only a static binary and the distroless runtime. `probe` checks `/readyz`. Kubernetes should use
+`/healthz` for liveness and `/readyz` for readiness. Neither endpoint reveals connection details.
+
+## Listeners, timeouts and shutdown
+
+Expose port 8080 through a TLS-terminating reverse proxy with HTTP/2 support. h2c is for a trusted
+private hop only. `MANAGEMENT_ADDR` is disabled by default. If enabled, it exposes unauthenticated
+metrics and pprof: bind a private interface or loopback and enforce network policy. Do not publish it.
+
+Header and idle timeouts are set; read/write timeouts are intentionally absent because global
+HTTP write deadlines break streaming RPCs. Handlers have no automatic wall-time bound. Apply unary
+application timeouts with contexts; for future streams enforce maximum duration, receive limits and
+per-message deadlines using `http.NewResponseController` where appropriate. Clients can request a
+shorter deadline. The server limits each incoming RPC message to 4 MiB. Size large responses in the service or at the proxy. Auth runs once per stream.
+
+On SIGTERM both listeners close to new connections. In-flight requests have 25 seconds to finish.
+If the deadline expires, the server closes active connections and exits nonzero. In Kubernetes, allow
+time for endpoint removal to reach your load balancer, using a `preStop` delay if needed. Include that
+delay and the drain period in the pod termination grace period.
+
+## Pool and readiness
+
+pgx defaults pool size to max(4, CPU count). Set `pool_max_conns` and other pgx options in the URL
+for deployment capacity. Readiness shares the application pool; saturation can make it fail. It
+pings Postgres and requires the verifier to have loaded keys once. Later identity outages do not
+remove readiness; monitor `unavailable` responses as well. Backups and restore drills are deployment work.
+
+## CORS, logs and metrics
+
+CORS is closed by default. Set exact frontend origins, including scheme/port, when separate origins
+are needed. No wildcard or credentialed cookie flow is supplied. The access log records request id,
+method, path/procedure, status/code and elapsed time without tokens, bodies or query strings.
+Metrics use bounded procedure and code labels. Alert on availability, latency and RPC
+`code="unavailable"`; provide your own Prometheus backend, dashboards and retention.
+
+## Operational additions
+
+Configure TLS and trusted reverse proxy handling for the actual deployment. Add request rate limits
+at the edge or in the app according to measured abuse patterns. Tracing is not enabled by default;
+add it when requests cross enough services to justify it. Registry publishing, release automation,
+image scanning and deployment manifests belong to your delivery platform. Run `buf breaking` against
+the base branch when evolving a public contract. Keep dependencies, tool pins and base images current.
+
+No frontend, browser e2e suite, htmx variant, REST variant, tenancy, authorization framework, blob
+storage, background jobs or automatic update mechanism for derived projects ships here.

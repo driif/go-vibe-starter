@@ -1,21 +1,21 @@
 #!/usr/bin/env bash
-# Mirror the canonical skills in .claude/skills to the tool-neutral agents/skills
-# tree so Codex / Pi / opencode have a non-Claude-branded path.
-# EDIT SKILLS IN .claude/skills ONLY, then run: make sync-skills
 set -euo pipefail
-
-SRC=".claude/skills"
-DST="agents/skills"
-
-if [ ! -d "$SRC" ]; then
-  echo "sync-skills: $SRC not found (run from repo root)" >&2
-  exit 1
-fi
-
-rm -rf "$DST"
-mkdir -p "$DST"
-# copy every SKILL.md and any reference subdirs (e.g. code-review/reviewers)
-cp -R "$SRC"/. "$DST"/
-
-count=$(find "$DST" -name 'SKILL.md' | wc -l | tr -d ' ')
-echo "sync-skills: mirrored $count skills to $DST"
+src=.claude/skills
+dst=agents/skills
+[ -d "$src" ] || { echo "sync-skills: run from the repository root" >&2; exit 1; }
+case "${1-}" in
+  --check)
+    [ "$#" -eq 1 ] || exit 2
+    if ! diff -qr "$src" "$dst"; then
+      echo "agents/skills is stale: run make sync-skills" >&2
+      exit 1
+    fi
+    ;;
+  "")
+    [ "$#" -eq 0 ] || exit 2
+    rm -rf "$dst"
+    mkdir -p "$dst"
+    cp -R "$src"/. "$dst"/
+    ;;
+  *) echo "usage: scripts/sync-skills.sh [--check]" >&2; exit 2 ;;
+esac

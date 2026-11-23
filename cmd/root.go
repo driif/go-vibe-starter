@@ -1,31 +1,51 @@
+// Package cmd provides the server and database commands.
 package cmd
 
 import (
-	"fmt"
+	"context"
+	"log/slog"
 	"os"
+	"os/signal"
+	"path/filepath"
+	"syscall"
 
-	"github.com/driif/go-vibe-starter/internal/server/config"
 	"github.com/spf13/cobra"
+
+	"github.com/driif/go-vibe-starter/internal/reqlog"
+	"github.com/driif/go-vibe-starter/internal/server/config"
 )
 
-var rootCmd = &cobra.Command{
-	Version: config.GetFormattedBuildArgs(),
-	Use:     "app",
-	Short:   config.ModuleName,
-	Long: fmt.Sprintf(`%v
-A stateless RESTful JSON service written in Go.
-Requires configuration through environment variables.`, config.ModuleName),
-}
+var version = "dev"
 
-// Execute executes the root command.
+// Execute runs the CLI until the command finishes or receives a signal.
 func Execute() {
-	if err := rootCmd.Execute(); err != nil {
-		fmt.Println(err)
+	setLogger(slog.LevelInfo)
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+
+	context.AfterFunc(ctx, stop)
+	err := root().ExecuteContext(ctx)
+	stop()
+	if err != nil {
+		slog.Error("command failed", "error", err)
 		os.Exit(1)
 	}
 }
 
-// init sets the version template for the root command.
-func init() {
-	rootCmd.SetVersionTemplate(`{{printf "%s\n" .Version}}`)
+func root() *cobra.Command {
+	r := &cobra.Command{Use: filepath.Base(os.Args[0]), Version: version, SilenceUsage: true, SilenceErrors: true}
+	r.AddCommand(&cobra.Command{Use: "run", Short: "Serve the API", Args: cobra.NoArgs, RunE: run},
+		&cobra.Command{Use: "probe", Short: "Check API readiness", Args: cobra.NoArgs, RunE: probe}, databaseCommand())
+	return r
+}
+
+func setLogger(level slog.Level) {
+	slog.SetDefault(slog.New(reqlog.NewHandler(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: level}))))
+}
+
+func loadConfig() (config.Config, error) {
+	c, err := config.Load()
+	if err == nil {
+		setLogger(c.LogLevel)
+	}
+	return c, err
 }

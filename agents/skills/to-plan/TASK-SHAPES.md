@@ -5,13 +5,13 @@ How to cut `### Task N:` sections for work that is not a straight feature slice.
 
 ## Feature slice (the default)
 
-The slice runs migration → sqlc query → OpenAPI → handler → route → test. Cut it in two or three
+The slice runs migration → sqlc query → protobuf contract → handler → route → test. Cut it in two or three
 tasks, not six: the data layer (migration + queries + `make sqlc` + query tests), then the HTTP
-layer (OpenAPI + `make gen-oapi` + handler + route + handler tests), then verification. A **tracer
-bullet** ticket should not need more, and each task leaves `make test` green on its own.
+layer (protobuf contract + `make gen-proto` + handler + route + handler tests), then verification. A **tracer
+bullet** ticket should not need more, and each task leaves `make check` green on its own.
 
 When a slice touches the router, the last checkbox of the HTTP task registers the domain in the hub
-(`internal/api/router/routes.go`), so the endpoint is reachable the moment the task closes.
+(`internal/server/routes.go`), so the endpoint is reachable the moment the task closes.
 
 ## Wide refactor
 
@@ -40,8 +40,8 @@ unchanged behaviour beside it, which is what stops a hardening pass from silentl
 
 ## Generated code
 
-Any task that edits `oapi/openapi.yaml`, `sql/queries/` or `migrations/` owns the regeneration in
-the same task — `make gen-oapi`, `make sqlc`, or `make gen` — and commits the generated output.
+Any task that edits `proto/api/v1/<domain>.proto`, `sql/queries/` or `sql/migrations/` owns the regeneration in
+the same task — `make gen-proto`, `make sqlc`, or `make gen` — and commits the generated output.
 The verification task ends with `make gen` plus `git diff --exit-code` to catch **drift**. Generated
-files are never hand-edited, so a checkbox never asks for an edit inside `*.gen.go` or
+files are never hand-edited, so a checkbox never asks for an edit inside `*.pb.go` and Connect output or
 `internal/db/gen`.

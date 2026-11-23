@@ -100,9 +100,9 @@ session.
 
 ## What closes an issue
 
-- **`ticket`** — the change is merged and `make test` and `make lint` both exit 0. Close with a
+- **`ticket`** — the change is merged and `make check` exits 0. Close with a
   comment naming the commit or PR:
-  `gh issue close <N> --comment "Done in <sha>; make test and make lint green."`
+  `gh issue close <N> --comment "Done in <sha>; make check green."`
 - **`spec`** — every ticket it spawned is closed. Close with a comment listing them.
 - **`decision`** — the answer is recorded in `docs/adr/`. Close with a comment linking the ADR.
 - **`bug`** — a regression test covers it and passes. Close referencing the test.

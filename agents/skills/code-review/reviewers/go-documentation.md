@@ -11,7 +11,7 @@ uncommitted.
 
 ## What each document owes the change
 
-**`README.md`** — the human-facing surface. It must cover a new endpoint, a new CLI command or flag,
+**`README.md`** — the human-facing surface. It must cover a new RPC, a new CLI command or flag,
 a new make target, a new environment variable, changed user-visible behaviour, a new dependency or
 system requirement, and anything that breaks an existing setup. It owes nothing to an internal
 refactor, a bug fix restoring documented behaviour, or a test-only change.
@@ -23,18 +23,18 @@ matching `agents/skills/` hunk in the diff, which is what `make sync-skills` pro
 follows an existing pattern owes it nothing.
 
 **`.env.example` and `docs/agents/env-reference.md`** — every variable the config package reads
-appears in both, with its default and a one-line comment. A new `env.GetEnv*` call with no entry in
+appears in both, with its default and a one-line comment. A new configuration variable with no entry in
 either is `major`; the two files disagreeing with each other is `major`.
 
-**`CONTEXT.md`** — the ubiquitous language and module map. A new domain term in the code, or a
-package whose responsibility changed, belongs here.
+**`CONTEXT.md`** — the ubiquitous language. A new domain term in the code, or a
+changed term definition, belongs here.
 
 **`docs/adr/`** — a decision the branch makes that a future reader would otherwise have to
 reverse-engineer (a swapped library, a rejected approach, a `seam` deliberately placed). Report the
 missing ADR; do not write it. A decision that contradicts an existing record means that ADR needs
 superseding, and that is `major`.
 
-**`oapi/openapi.yaml`** — the API contract, and the source the handler types generate from. A
+**`proto/api/v1/<domain>.proto`** — the API contract, with proto comments documenting behavior. A
 behaviour visible over HTTP that the spec does not describe is a finding, as is a description that no
 longer matches the handler.
 

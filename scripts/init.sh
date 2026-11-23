@@ -1,352 +1,189 @@
 #!/usr/bin/env bash
-# Bootstrap a project created from the go-vibe-starter template:
-# rename the module, rename the binary, strip the DEMO slice, reset the docs.
-# Safe to run more than once — every step is a no-op once it has been applied.
 set -euo pipefail
-
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-cd "$ROOT"
-
-DEMO_MARKER='DEMO: reference vertical slice'
-DEMO_DOMAIN='notes'
-
-NEW_MODULE=""
-NEW_APP_NAME=""
-KEEP_DEMO=0
-ASSUME_YES=0
-
 usage() {
   cat <<'EOF'
-usage: scripts/init.sh [options]
-
-  --module <path>   new Go module path (e.g. github.com/acme/billing)
-  --name <name>     binary name written to bin/ (default: last module segment)
-  --keep-demo       keep the notes reference slice instead of deleting it
-  -y, --yes         take the defaults, never prompt
-  -h, --help        show this message
-
-With no flags the script asks for the module path and the app name.
+usage: scripts/init.sh [--module PATH] [--name NAME] [--keep-demo] [-y|--yes]
+  --module PATH  required on the first run; defaults to the current module later
+  --name NAME    binary, image and compose project name; defaults to module basename
+  --keep-demo    keep the reference slice on the first run (manual removal later)
+  -y, --yes      take flags and defaults without prompting
+Exit codes: 0 done, 1 failed step, 2 invalid usage.
 EOF
 }
-
-say() { printf '%s\n' "$*"; }
-warn() { printf 'init: %s\n' "$*" >&2; }
-die() { printf 'init: %s\n' "$*" >&2; exit 1; }
-
-while [ $# -gt 0 ]; do
+fail() { echo "init: $*" >&2; exit 1; }
+invalid() { echo "init: $*" >&2; exit 2; }
+module=
+name=
+yes=0
+keep=0
+while [ "$#" -gt 0 ]; do
   case "$1" in
-    --module) [ $# -ge 2 ] || die "--module needs a value"; NEW_MODULE="$2"; shift 2 ;;
-    --module=*) NEW_MODULE="${1#*=}"; shift ;;
-    --name) [ $# -ge 2 ] || die "--name needs a value"; NEW_APP_NAME="$2"; shift 2 ;;
-    --name=*) NEW_APP_NAME="${1#*=}"; shift ;;
-    --keep-demo) KEEP_DEMO=1; shift ;;
-    -y|--yes) ASSUME_YES=1; shift ;;
+    --module|--name)
+      [ "$#" -ge 2 ] || invalid "$1 needs a value"
+      if [ "$1" = --module ]; then module=$2; else name=$2; fi
+      shift 2 ;;
+    --keep-demo) keep=1; shift ;;
+    -y|--yes) yes=1; shift ;;
     -h|--help) usage; exit 0 ;;
-    *) usage >&2; die "unknown option: $1" ;;
+    *) invalid "unknown argument: $1" ;;
   esac
 done
-
-command -v go >/dev/null 2>&1 || die "go is not on PATH"
-[ -f go.mod ] || die "go.mod not found — run this from the repository root"
-
-CURRENT_MODULE="$(awk '$1 == "module" { print $2; exit }' go.mod)"
-[ -n "$CURRENT_MODULE" ] || die "could not read the module path from go.mod"
-
-# --- helpers ---------------------------------------------------------------
-
-# escape a string so it is literal on both sides of a sed s|...|...| command
-sed_escape() { printf '%s' "$1" | sed -e 's/[\\|&]/\\&/g'; }
-
-# rewrite a file through a temp copy: BSD and GNU sed disagree about -i
-rewrite_file() {
-  local target="$1"; shift
-  local tmp
-  tmp="$(mktemp)"
-  sed "$@" "$target" >"$tmp"
-  if ! cmp -s "$target" "$tmp"; then
-    cat "$tmp" >"$target"
-  fi
-  rm -f "$tmp"
-}
-
-ask() { # ask <question> <default> -> answer on stdout
-  local question="$1" default="$2" answer=""
-  if [ "$ASSUME_YES" -eq 1 ] || [ ! -t 0 ]; then
-    printf '%s' "$default"
-    return 0
-  fi
-  read -r -p "$question [$default]: " answer </dev/tty || answer=""
-  printf '%s' "${answer:-$default}"
-}
-
-confirm() { # confirm <question> ; default no
-  local answer
-  if [ "$ASSUME_YES" -eq 1 ] || [ ! -t 0 ]; then
-    return 1
-  fi
-  read -r -p "$1 [y/N]: " answer </dev/tty || answer=""
-  case "$answer" in [yY]|[yY][eE][sS]) return 0 ;; *) return 1 ;; esac
-}
-
-capitalize() { printf '%s%s' "$(printf '%s' "${1:0:1}" | tr '[:lower:]' '[:upper:]')" "${1:1}"; }
-
-# --- gather answers --------------------------------------------------------
-
-if [ -z "$NEW_MODULE" ]; then
-  NEW_MODULE="$(ask "New Go module path" "$CURRENT_MODULE")"
-fi
-case "$NEW_MODULE" in
-  *[![:alnum:]._/~-]*|"") die "invalid module path: '$NEW_MODULE'" ;;
-esac
-
-if [ -z "$NEW_APP_NAME" ]; then
-  NEW_APP_NAME="$(ask "Binary name" "${NEW_MODULE##*/}")"
-fi
-case "$NEW_APP_NAME" in
-  *[![:alnum:]._-]*|"") die "invalid binary name: '$NEW_APP_NAME'" ;;
-esac
-
-say "init: module $CURRENT_MODULE -> $NEW_MODULE"
-say "init: binary $NEW_APP_NAME"
-
-# --- 1. module path --------------------------------------------------------
-
-if [ "$NEW_MODULE" != "$CURRENT_MODULE" ]; then
-  go mod edit -module "$NEW_MODULE"
-  old_escaped="$(sed_escape "$CURRENT_MODULE")"
-  new_escaped="$(sed_escape "$NEW_MODULE")"
-  count=0
-  while IFS= read -r file; do
-    [ -n "$file" ] || continue
-    rewrite_file "$file" -e "s|${old_escaped}|${new_escaped}|g"
-    count=$((count + 1))
-  done <<EOF
-$(grep -rlF "$CURRENT_MODULE" --include='*.go' --include='*.md' \
-    --exclude-dir=.git --exclude-dir=bin . 2>/dev/null || true)
-EOF
-  say "init: rewrote import paths in $count files"
+[ -f go.mod ] && [ -f Makefile ] && [ -f docker-compose.yaml ] || fail 'run from the repository root'
+old=$(awk '$1 == "module" {print $2; exit}' go.mod)
+old_name=$(sed -n 's/^APP_NAME := //p' Makefile)
+first=0
+[ ! -e scripts/template-smoke.sh ] || first=1
+if [ "$yes" -eq 0 ]; then
+  [ -t 0 ] || invalid 'not a terminal; pass --module, --name and --yes'
+  read -r -p "Go module path [${module:-$old}]: " answer
+  module=${answer:-${module:-$old}}
 else
-  say "init: module path already set, skipping"
+  [ "$first" -eq 0 ] || [ -n "$module" ] || invalid '--module is required on the first run'
 fi
-
-# --- 2. binary name --------------------------------------------------------
-
-rewrite_file Makefile -e "s|^APP_NAME := .*|APP_NAME := $(sed_escape "$NEW_APP_NAME")|"
-
-# --- 3. DEMO slice ---------------------------------------------------------
-
-strip_openapi_demo() {
-  local spec="oapi/openapi.yaml"
-  [ -f "$spec" ] || return 0
-  grep -q "/v1/${DEMO_DOMAIN}" "$spec" || return 0
-  if ! command -v python3 >/dev/null 2>&1; then
-    warn "python3 not found — remove the /v1/${DEMO_DOMAIN} paths and schemas from $spec by hand"
-    return 0
+module=${module:-$old}
+module_re='^[a-z0-9][a-z0-9.-]*\.[a-z][a-z0-9-]*(/[A-Za-z0-9_~-][A-Za-z0-9._~-]*)+$'
+[[ "$module" =~ $module_re ]] || invalid 'invalid module path: use a domain followed by a path'
+placeholder=init-placeholder.invalid/module
+[[ "$module" != *"$placeholder"* ]] || invalid 'module contains a path reserved for initialization'
+if [ -z "$name" ]; then
+  base=${module##*/}
+  if [[ "$base" =~ ^v[0-9]+$ ]]; then parent=${module%/*}; base=${parent##*/}; fi
+  name=$(printf '%s' "$base" | tr '[:upper:]' '[:lower:]')
+fi
+if [ "$yes" -eq 0 ]; then
+  read -r -p "Project name [$name]: " answer
+  name=${answer:-$name}
+  if [ "$first" -eq 1 ] && [ "$keep" -eq 0 ]; then
+    read -r -p 'Keep the demo slice? [y/N] ' answer
+    case "$answer" in y|Y|yes|YES) keep=1 ;; esac
   fi
-  if ! python3 - "$spec" "$DEMO_DOMAIN" "$DEMO_MARKER" "$NEW_APP_NAME" <<'PY'
-import json, sys
-
-path, domain, marker, app = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4]
-with open(path) as fh:
-    doc = json.load(fh)
-
-info = doc.setdefault("info", {})
-info["title"] = app + " API"
-if domain in info.get("description", "").lower():
-    del info["description"]
-
-for key in [k for k in doc.get("paths", {}) if k.startswith("/v1/" + domain)]:
-    del doc["paths"][key]
-
-tag = domain[:1].upper() + domain[1:]
-tags = [t for t in doc.get("tags", [])
-        if t.get("name") != tag and marker not in t.get("description", "")]
-if tags:
-    doc["tags"] = tags
-elif "tags" in doc:
-    del doc["tags"]
-
-
-def collect(node, out):
-    """gather every $ref target under node."""
-    if isinstance(node, dict):
-        for key, value in node.items():
-            if key == "$ref" and isinstance(value, str):
-                out.add(value)
-            else:
-                collect(value, out)
-    elif isinstance(node, list):
-        for value in node:
-            collect(value, out)
-
-
-def resolve(ref):
-    node = doc
-    for part in ref.lstrip("#/").split("/"):
-        if not isinstance(node, dict) or part not in node:
-            return None
-        node = node[part]
-    return node
-
-
-# walk out from the surviving paths; anything under components the walk never
-# reaches only existed for the demo slice
-reachable, frontier = set(), set()
-collect(doc.get("paths", {}), frontier)
-while frontier:
-    ref = frontier.pop()
-    if ref in reachable:
-        continue
-    reachable.add(ref)
-    target = resolve(ref)
-    if target is not None:
-        found = set()
-        collect(target, found)
-        frontier |= found - reachable
-
-components = doc.get("components", {})
-for section in ("schemas", "responses", "parameters", "requestBodies", "headers", "examples"):
-    entries = components.get(section)
-    if not isinstance(entries, dict):
-        continue
-    for name in [n for n in entries
-                 if "#/components/%s/%s" % (section, n) not in reachable]:
-        del entries[name]
-    if not entries:
-        del components[section]
-
-with open(path, "w") as fh:
-    json.dump(doc, fh, indent=2)
-    fh.write("\n")
-PY
-  then
-    warn "could not rewrite $spec automatically — remove the /v1/${DEMO_DOMAIN} paths by hand"
-  fi
+fi
+name_re='^[a-z0-9]+([_-][a-z0-9]+)*$'
+[[ "$name" =~ $name_re ]] && [ "${#name}" -le 50 ] || invalid 'invalid name: use at most 50 lowercase letters, digits, hyphens or underscores'
+for tool in git go make; do command -v "$tool" >/dev/null || fail "$tool is required"; done
+[ "$(git rev-parse --show-toplevel)" = "$(pwd -P)" ] || fail 'run from the git work tree root'
+tmp=$(mktemp -d)
+trap 'rm -rf "$tmp"' EXIT
+cp go.mod "$tmp/check.mod"
+go mod edit -modfile="$tmp/check.mod" -module "$module" || invalid 'Go rejected the module path'
+make tools-check
+if [ "$yes" -eq 0 ]; then
+  echo "Initialise $name ($module); keep reference slice: $keep."
+  read -r -p 'Proceed? [y/N] ' answer
+  case "$answer" in y|Y|yes|YES) ;; *) invalid 'cancelled' ;; esac
+fi
+rewrite() {
+  target=$1
+  expression=$2
+  sed -E "$expression" "$target" >"$tmp/rewrite"
+  if ! cmp -s "$target" "$tmp/rewrite"; then cat "$tmp/rewrite" >"$target"; fi
 }
-
-if [ "$KEEP_DEMO" -eq 1 ]; then
-  say "init: keeping the ${DEMO_DOMAIN} reference slice"
-else
-  # hand-written sources only: generated output carries the marker too, and
-  # 'make gen' rewrites it from the stripped spec and queries
-  demo_files="$(grep -rlF "$DEMO_MARKER" --include='*.go' --include='*.sql' \
-    internal migrations sql 2>/dev/null \
-    | grep -v -e '\.gen\.go$' -e '^internal/db/gen/' || true)"
-
-  if [ -z "$demo_files" ]; then
-    say "init: DEMO slice already removed, skipping"
-  else
-    # a deleted internal/api/router/routes_<domain>.go means routes.go still
-    # calls register<Domain>; drop that call from the hub
-    while IFS= read -r file; do
-      [ -n "$file" ] || continue
-      case "$file" in
-        internal/api/router/routes_*.go)
-          domain="${file##*/routes_}"
-          domain="${domain%.go}"
-          if [ -f internal/api/router/routes.go ]; then
-            rewrite_file internal/api/router/routes.go -e "/register$(capitalize "$domain")(/d"
-          fi
-          ;;
-      esac
-      rm -f "$file"
-      say "  removed $file"
-    done <<EOF
-$demo_files
-EOF
-
-    rm -f "internal/db/gen/${DEMO_DOMAIN}.sql.go"
-    # sqlc refuses to run with no queries at all, so once the demo query file is
-    # gone its stale output has to go too or the package stops compiling
-    if [ -d internal/db/gen ] && ! ls sql/queries/*.sql >/dev/null 2>&1; then
-      rm -f internal/db/gen/*.go
-      say "  emptied internal/db/gen (sqlc regenerates it from your first query)"
-    fi
-    strip_openapi_demo
-    say "init: DEMO slice stripped — run 'make gen-oapi' now, 'make sqlc' once you have queries"
-  fi
-fi
-
-# --- 4. docs reset ---------------------------------------------------------
-
-reset_docs() {
+: >"$tmp/deleted"
+if [ "$first" -eq 1 ]; then
+  rm -f .github/workflows/template-smoke.yml SECURITY.md LICENSE
+  rm -rf docs/designs
+  find docs/plans docs/adr -type f -name '*.md' -delete
   cat >README.md <<EOF
-# ${NEW_APP_NAME}
+# $name
 
-## Quick start
+Go backend. Read [AGENTS.md](AGENTS.md) for the layout and conventions and
+[CONTEXT.md](CONTEXT.md) for the domain language.
 
 \`\`\`sh
-make tools     # install the pinned codegen and lint tools
-make db-up     # start postgres (and keycloak) via docker compose
+make tools
+make dev-up
 make migrate-up
 make run
 \`\`\`
 
-Run \`make help\` for the full target list.
+In another terminal:
 
-## Working in this repo
+\`\`\`sh
+curl -fsS http://localhost:8080/readyz
+curl -fsS -H 'Content-Type: application/json' -d '{}' http://localhost:8080/api.v1.WhoAmIService/WhoAmI
+make check
+\`\`\`
 
-Read [AGENTS.md](./AGENTS.md) first: stack, conventions, commands, and the
-workflow agents follow. [CONTEXT.md](./CONTEXT.md) holds the domain language.
+Start frontend work separately in \`frontend/\`. See [authentication](docs/auth.md)
+and [deployment](docs/production.md). Add your own licence.
+Run \`/setup-project\` in your agent to set up the project vocabulary and issue labels.
 EOF
-
-  cat >CONTEXT.md <<'EOF'
-# Context
-
-The domain language for this project. Keep it accurate — agents read it before
-they touch code, and drift here shows up as drift in the code.
-
-## Ubiquitous language
-
-| Term | Means |
-|---|---|
-| | |
-
-## Module map
-
-| Package | Owns |
-|---|---|
-| `cmd` | CLI entry points (`run`, `db migrate`, `db seed`) |
-| `internal/api/handlers` | HTTP handlers, one file per domain |
-| `internal/api/router` | Route registration, one file per domain |
-| `internal/server` | Server construction, config, auth, middleware |
-| `internal/db/gen` | sqlc output — generated, never hand-edited |
-| `pkg` | Reusable helpers with no project-specific knowledge |
-EOF
-
-  mkdir -p docs/plans/completed docs/adr
-  # README.md in those directories documents the format, not the content
-  find docs/plans docs/adr -type f -name '*.md' ! -name 'README.md' -delete
-  touch docs/plans/.gitkeep docs/plans/completed/.gitkeep docs/adr/.gitkeep
+  if [ "$keep" -eq 0 ]; then
+    while IFS= read -r -d '' file; do
+      [ -f "$file" ] || continue
+      case "$file" in internal/gen/*|internal/db/gen/*) continue ;; esac
+      IFS= read -r line <"$file" || true
+      if [[ "$line" =~ ^(//|--)\ DEMO:\  ]]; then
+        printf '%s\n' "$file" >>"$tmp/deleted"
+        rm -f "$file"
+      elif [[ "$file" = *.go ]]; then
+        rewrite "$file" '/\/\/ DEMO:line$/d'
+      fi
+    done < <(git ls-files -z --cached --others --exclude-standard -- internal proto sql)
+    find internal proto -depth -type d -empty -delete
+  else
+    echo 'demo kept: init will not remove it later. Removal is manual, and its migration is version 1 of every database it was applied to.'
+  fi
+  rm -f scripts/template-smoke.sh
+fi
+# Rename through a reserved path so an interrupted run can resume even when the
+# destination is inside the old module (for example, a /v2 or /internal suffix).
+rename_paths() {
+  from=$1
+  to=$2
+  git grep -Iz --untracked -l -F -e "$from" -- . ':!internal/gen' ':!internal/db/gen' ':!agents/skills' ':!scripts/init.sh' >"$tmp/files" || [ "$?" -eq 1 ]
+  while IFS= read -r -d '' file; do
+    awk -v old="$from" -v new="$to" 'FILENAME == "go.mod" && $1 == "module" {print; next} {
+      rest=$0; result=""
+      while (i=index(rest, old)) {
+        result=result substr(rest,1,i-1)
+        rest=substr(rest,i+length(old))
+        result=result (rest ~ /^[[:alnum:]_~-]/ ? old : new)
+      }
+      print result rest
+    }' "$file" >"$tmp/rewrite"
+    if ! cmp -s "$file" "$tmp/rewrite"; then cat "$tmp/rewrite" >"$file"; fi
+  done <"$tmp/files"
 }
-
-if [ "$ASSUME_YES" -eq 1 ] || confirm "Reset README.md, CONTEXT.md, docs/plans and docs/adr?"; then
-  reset_docs
-  say "init: docs reset"
-else
-  say "init: left README.md, CONTEXT.md and docs/ alone"
+if [ "$old" != "$module" ]; then
+  rename_paths "$old" "$placeholder"
+  go mod edit -module "$module"
 fi
+rename_paths "$placeholder" "$module"
+[ -n "$old_name" ] || fail 'APP_NAME anchor missing in Makefile'
+grep -q '^name: ' docker-compose.yaml || fail 'name anchor missing in docker-compose.yaml'
+rewrite Makefile "s/^APP_NAME := .*$/APP_NAME := $name/"
+rewrite docker-compose.yaml "s/^name: .*$/name: $name/"
+make gen
+go mod tidy
+make sync-skills
+go build ./...
+go vet ./...
+make build
 
-# --- 5. labels -------------------------------------------------------------
-
-if confirm "Create the GitHub issue labels now (needs gh auth)?"; then
-  ./scripts/setup-labels.sh
-else
-  say "init: skipping labels — run 'make labels' when the repo exists on GitHub"
+if git grep -nIF --untracked -e "$placeholder" -- . ':!scripts/init.sh'; then fail 'incomplete module rename'; fi
+present=0
+while IFS= read -r -d '' file; do
+  [ -f "$file" ] || continue
+  case "$file" in internal/gen/*|internal/db/gen/*) continue ;; esac
+  IFS= read -r line <"$file" || true
+  if [[ "$line" =~ ^(//|--)\ DEMO:\  ]]; then present=1; break; fi
+done < <(git ls-files -z --cached --others --exclude-standard -- internal proto sql)
+if [ "$present" -eq 0 ]; then
+  if git grep -nIF --untracked -e 'DEMO:' -- . ':!scripts/init.sh'; then fail 'reference marker remains'; fi
+  while IFS= read -r file; do
+    if git grep -nIF --untracked -e "$file" -- . ':!scripts/init.sh'; then fail 'deleted reference path remains'; fi
+  done <"$tmp/deleted"
 fi
-
-# --- 6. next steps ---------------------------------------------------------
-
-cat <<EOF
-
-Done. Next:
-
-  1. make tools        install the pinned codegen and lint tools
-  2. make gen          regenerate the API and sqlc layers
-  3. make db-up        start postgres via docker compose
-  4. make migrate-up   apply migrations
-  5. make test         go test -race ./...
-  6. cp .env.example .env.local and fill in the values you need
-
-Then describe your first feature and let the skill pack take it from there.
+printf 'Initialised %s (%s).\n' "$name" "$module"
+[ "$first" -eq 0 ] || echo 'Removed LICENSE: add your own.'
+cat <<'EOF'
+Next:
+  1. git add -A && git commit -m "Initialise project"
+  2. make dev-up        Postgres on 127.0.0.1:5434
+  3. make migrate-up
+  4. make run           port 8080, local auth from .env.local
+  5. make check         the gate CI runs
+  6. make labels        once the repository exists on GitHub (needs gh)
+Then run /setup-project in your agent.
 EOF

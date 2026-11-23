@@ -18,20 +18,20 @@ If no spec was supplied, report `no spec available` and stop.
 2. **Approach.** The implementation solves the problem the spec describes, not a nearby one. Name any
    condition under which it would fail to deliver what was asked.
 3. **Wiring.** New code is actually reachable end to end. Walk `the slice` for the change:
-   - a migration in `migrations/` for a schema change, with a working `Down`;
+   - a migration in `sql/migrations/` for a schema change, with a working `Down`;
    - the query in `sql/queries/` and its generated counterpart in `internal/db/gen/`;
-   - the path and schemas in `oapi/openapi.yaml`, with the regenerated `internal/api/*.gen.go`;
-   - the handler in `internal/api/handlers/`;
+   - the path and schemas in `proto/api/v1/<domain>.proto`, with the regenerated `internal/gen/**`;
+   - the transport-free domain store in `internal/domain/` and thin handler in `internal/rpc/`;
    - the route in a `routes_*.go`, registered from the `hub`
-     (`internal/api/router/routes.go`), behind the right middleware;
+     (`internal/server/routes.go`), behind the right middleware;
    - a new config field read in `internal/server/config`, threaded from `cmd/run.go` through
-     `server.NewWithConfig` to whatever consumes it, and present in both `.env.example` and
+     `server.Handler` to whatever consumes it, and present in both `.env.example` and
      `docs/agents/env-reference.md`;
    - a new middleware constructed in `internal/server/server.go`, not merely defined.
-4. **`drift`.** Generated output matches its source: a change to `oapi/openapi.yaml` with no
-   `*.gen.go` hunk, or to `sql/queries/*.sql` with no `internal/db/gen` hunk. `make gen` followed by
+4. **`drift`.** Generated output matches its source: a change to `proto/api/v1/<domain>.proto` with no
+   `*.pb.go` and Connect output hunk, or to `sql/queries/*.sql` with no `internal/db/gen` hunk. `make gen` followed by
    `git diff --exit-code` is the check; report a dirty tree as `major`. The mirror image — hunks
-   inside `*.gen.go` or `internal/db/gen` with no source change — is a hand-edited generated file and
+   inside `*.pb.go` and Connect output or `internal/db/gen` with no source change — is a hand-edited generated file and
    `critical`.
 5. **Completeness.** No unimplemented interface method, no `TODO` standing in for required behaviour,
    no code path that returns a placeholder value.

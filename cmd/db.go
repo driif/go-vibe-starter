@@ -1,27 +1,27 @@
 package cmd
 
 import (
-	"fmt"
-	"os"
+	"errors"
 
+	"github.com/driif/go-vibe-starter/internal/db"
 	"github.com/spf13/cobra"
 )
 
-// dbCmd represents the db command
-// see db_*.go for sub_commands
-var dbCmd = &cobra.Command{
-	Use:   "db <subcommand>",
-	Short: "erform database operations",
-	Long:  `Perform database operations: drop or migrate a module.`,
-	Run: func(cmd *cobra.Command, args []string) {
-		if err := cmd.Help(); err != nil {
-			fmt.Println(err)
-			os.Exit(1)
-		}
-		os.Exit(0)
-	},
-}
-
-func init() {
-	rootCmd.AddCommand(dbCmd)
+func databaseCommand() *cobra.Command {
+	database := &cobra.Command{Use: "db", Short: "Manage the database"}
+	migrations := &cobra.Command{Use: "migrate", Short: "Apply or inspect embedded migrations"}
+	for _, name := range []string{"up", "down", "status"} {
+		migrations.AddCommand(&cobra.Command{Use: name, Args: cobra.NoArgs, RunE: func(c *cobra.Command, _ []string) error {
+			cfg, err := loadConfig()
+			if err != nil {
+				return err
+			}
+			if cfg.DatabaseURL == "" {
+				return errors.New("DATABASE_URL is required")
+			}
+			return db.Migrate(c.Context(), cfg.DatabaseURL, c.Name(), c.OutOrStdout())
+		}})
+	}
+	database.AddCommand(migrations)
+	return database
 }
