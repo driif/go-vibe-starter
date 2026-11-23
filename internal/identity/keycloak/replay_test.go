@@ -33,7 +33,10 @@ func TestReplay_RepeatsFailureThenRecovers(t *testing.T) {
 	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, "http://issuer.test/discovery", nil)
 	require.NoError(t, err)
 	for range 20 {
-		_, err = r.RoundTrip(req)
+		resp, err := r.RoundTrip(req)
+		if resp != nil {
+			resp.Body.Close()
+		}
 		require.Error(t, err)
 	}
 	assert.Equal(t, 1, calls)
@@ -58,7 +61,10 @@ func TestReplay_BodyLimit(t *testing.T) {
 	})}
 	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, "http://issuer.test/keys", nil)
 	require.NoError(t, err)
-	_, err = r.RoundTrip(req)
+	resp, err := r.RoundTrip(req)
+	if resp != nil {
+		resp.Body.Close()
+	}
 	require.ErrorContains(t, err, "exceeds 1 MiB")
 }
 

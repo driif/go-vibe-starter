@@ -102,7 +102,7 @@ func testHandler(t *testing.T, change ...func(*Deps)) http.Handler {
 		plain.HandleFunc("POST /test/echo", func(w http.ResponseWriter, r *http.Request) {
 			body, err := io.ReadAll(r.Body)
 			if err != nil {
-				http.Error(w, "too large", 413)
+				http.Error(w, "too large", http.StatusRequestEntityTooLarge)
 				return
 			}
 			w.Write(body)

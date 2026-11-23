@@ -59,7 +59,7 @@ fi
 name_re='^[a-z0-9]+([_-][a-z0-9]+)*$'
 [[ "$name" =~ $name_re ]] && [ "${#name}" -le 50 ] || invalid 'invalid name: use at most 50 lowercase letters, digits, hyphens or underscores'
 for tool in git go make; do command -v "$tool" >/dev/null || fail "$tool is required"; done
-[ "$(git rev-parse --show-toplevel)" = "$PWD" ] || fail 'run from the git work tree root'
+[ "$(git rev-parse --show-toplevel)" = "$(pwd -P)" ] || fail 'run from the git work tree root'
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
 cp go.mod "$tmp/check.mod"
@@ -129,7 +129,7 @@ if [ "$old" != "$module" ]; then
   escaped_new=$(printf '%s' "$module" | sed 's/[&|\\]/\\&/g')
   while IFS= read -r -d '' file; do
     [ "$file" != go.mod ] || continue
-    rewrite "$file" "s|${escaped_old}([^A-Za-z0-9_~-]|$)|${escaped_new}\\1|g"
+    rewrite "$file" "s#${escaped_old}([^A-Za-z0-9_~-]|$)#${escaped_new}\\1#g"
   done < <(git grep -Iz --untracked -l -F -e "$old" -- . ':!internal/gen' ':!internal/db/gen' || true)
   go mod edit -module "$module"
 fi

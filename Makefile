@@ -46,7 +46,8 @@ tools: ## install the pinned buf, sqlc, golangci-lint and govulncheck into bin/t
 
 tools-check: ## fail when a pinned tool is missing or outdated
 	@for stamp in $(STAMPS); do \
-		test -f $$stamp || { echo "tools missing or outdated: run 'make tools'"; exit 1; }; \
+		tool=$${stamp##*/.}; tool=$${tool%-v*}; \
+		test -f "$$stamp" && test -x "$(TOOLS)/$$tool" || { echo "tools missing or outdated: run 'make tools'"; exit 1; }; \
 	done
 
 build: ## compile the server to bin/

@@ -52,11 +52,14 @@ func TestServe(t *testing.T) {
 		res.Body.Close()
 		require.Equal(t, 200, res.StatusCode)
 	}
-	response := make(chan *http.Response, 1)
+	response := make(chan int, 1)
 	requestErr := make(chan error, 1)
 	go func() {
 		res, err := http.Get("http://" + appListener.Addr().String())
-		response <- res
+		if err == nil {
+			res.Body.Close()
+			response <- res.StatusCode
+		}
 		requestErr <- err
 	}()
 	<-started
@@ -68,9 +71,7 @@ func TestServe(t *testing.T) {
 	}
 	close(release)
 	require.NoError(t, <-requestErr)
-	res := <-response
-	res.Body.Close()
-	require.Equal(t, 204, res.StatusCode)
+	require.Equal(t, http.StatusNoContent, <-response)
 	require.NoError(t, <-result)
 }
 

@@ -57,9 +57,9 @@ func (v *Verifier) Verify(ctx context.Context, rawToken string) (*identity.Princ
 	token, err := v.verifier.Verify(context.WithValue(ctx, fetchErrorKey{}, &fetchErr), rawToken)
 	if err != nil {
 		if fetchErr != nil {
-			return nil, fmt.Errorf("%w: %v", identity.ErrUnavailable, fetchErr)
+			return nil, fmt.Errorf("%w: %w", identity.ErrUnavailable, fetchErr)
 		}
-		return nil, fmt.Errorf("%w: %v", identity.ErrUnauthenticated, err)
+		return nil, fmt.Errorf("%w: %w", identity.ErrUnauthenticated, err)
 	}
 	var claims struct {
 		Type     json.RawMessage `json:"typ"`
@@ -131,7 +131,7 @@ func (k *keySet) discover() (*oidc.RemoteKeySet, error) {
 	if err != nil {
 		var mismatch *oidc.IssuerMismatchError
 		if errors.As(err, &mismatch) {
-			return nil, fmt.Errorf("%w: %v", ErrIssuerMismatch, err)
+			return nil, fmt.Errorf("%w: %w", ErrIssuerMismatch, err)
 		}
 		return nil, err
 	}

@@ -28,7 +28,13 @@ Create a separate realm; do not deploy the dev realm. Use HTTPS and an access-to
 for the API on every calling client. Keep the API audience distinct from client ids and out of ID
 tokens. Disable direct access grants. Use short access-token lifetimes and test key rotation.
 After deleting a signing key, restart API replicas to discard previously cached keys.
-Configure directory federation in Keycloak when LDAP-backed login is needed.
+## Directory login through Keycloak
+
+1. In the deployment realm, open **User federation → Add LDAP provider**. Select the directory vendor and set the users DN, the LDAPS URL, and a read-only bind account. Store the bind credential in Keycloak's secret store. Configure trust for the directory's CA.
+2. Test the connection and authentication in Keycloak. Choose read-only edit mode when the directory owns user records. Configure LDAP group mappings and assign the realm roles your API uses.
+3. Sign in through the browser client as a directory user. Call WhoAmI with that user's access token and check the subject and roles. The Go service uses the same issuer and API audience for local and federated accounts.
+
+See the [Keycloak server administration guide](https://www.keycloak.org/docs/latest/server_admin/#_ldap) for vendor settings, mappers and synchronization.
 
 ## Verifier limits
 
