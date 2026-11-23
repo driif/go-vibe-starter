@@ -8,10 +8,13 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"slices"
 	"strings"
-	"sync"
 	"sync/atomic"
 	"time"
+
+	jose "github.com/go-jose/go-jose/v4"
+	"golang.org/x/sync/singleflight"
 
 	"github.com/coreos/go-oidc/v3/oidc"
 
@@ -31,19 +34,17 @@ type Verifier struct {
 
 // New constructs a verifier without contacting the provider.
 func New(issuer, audience string) *Verifier {
+	transport := &replay{base: http.DefaultTransport, ttl: fetchTimeout}
 	client := &http.Client{
 		Timeout:   fetchTimeout,
-		Transport: &replay{base: http.DefaultTransport, ttl: fetchTimeout},
+		Transport: transport,
 	}
-	keys := &keySet{issuer: issuer, ctx: oidc.ClientContext(context.Background(), client)}
+	keys := &keySet{issuer: issuer, transport: transport, ctx: oidc.ClientContext(context.Background(), client)}
 	return &Verifier{
 		keys: keys,
 		verifier: oidc.NewVerifier(issuer, keys, &oidc.Config{
-			ClientID: audience,
-			SupportedSigningAlgs: []string{
-				"RS256", "RS384", "RS512", "ES256", "ES384", "ES512",
-				"PS256", "PS384", "PS512", "EdDSA",
-			},
+			ClientID:             audience,
+			SupportedSigningAlgs: signingAlgorithms,
 		}),
 	}
 }
@@ -100,33 +101,68 @@ func accessTokenType(rawToken string, claim json.RawMessage) bool {
 }
 
 // Ready loads discovery and signing keys once; subsequent calls need no provider I/O.
-func (v *Verifier) Ready(context.Context) error {
+func (v *Verifier) Ready(ctx context.Context) error {
 	if v.keys.ready.Load() {
 		return nil
 	}
 	var fetchErr error
-	ctx := context.WithValue(v.keys.ctx, fetchErrorKey{}, &fetchErr)
+	ctx = context.WithValue(ctx, fetchErrorKey{}, &fetchErr)
 	// the deliberately invalid signature primes go-oidc's key cache
 	_, _ = v.keys.VerifySignature(ctx, "eyJhbGciOiJSUzI1NiIsImtpZCI6Ii0ifQ.e30.AA")
 	return fetchErr
 }
 
+var signingAlgorithms = []string{"RS256", "RS384", "RS512", "ES256", "ES384", "ES512", "PS256", "PS384", "PS512", "EdDSA"}
+
+// go-oidc treats a successfully fetched empty set as a signature mismatch.
+func checkSigningKeys(body []byte) error {
+	var set struct {
+		Keys []json.RawMessage `json:"keys"`
+	}
+	if err := json.Unmarshal(body, &set); err != nil {
+		return err
+	}
+	for _, raw := range set.Keys {
+		var key jose.JSONWebKey
+		if json.Unmarshal(raw, &key) == nil && key.Valid() && key.IsPublic() && (key.Use == "" || key.Use == "sig") && (key.Algorithm == "" || slices.Contains(signingAlgorithms, key.Algorithm)) {
+			return nil
+		}
+	}
+	return errors.New("issuer returned no usable signing keys")
+}
+
 type fetchErrorKey struct{}
 
 type keySet struct {
-	issuer string
-	ctx    context.Context
-	mu     sync.Mutex
-	remote *oidc.RemoteKeySet
-	ready  atomic.Bool
+	issuer    string
+	ctx       context.Context
+	discovery singleflight.Group
+	remote    atomic.Pointer[oidc.RemoteKeySet]
+	transport *replay
+	ready     atomic.Bool
 }
 
-func (k *keySet) discover() (*oidc.RemoteKeySet, error) {
-	k.mu.Lock()
-	defer k.mu.Unlock()
-	if k.remote != nil {
-		return k.remote, nil
+func (k *keySet) discover(ctx context.Context) (*oidc.RemoteKeySet, error) {
+	if remote := k.remote.Load(); remote != nil {
+		return remote, nil
 	}
+	result := k.discovery.DoChan("discovery", func() (any, error) {
+		if remote := k.remote.Load(); remote != nil {
+			return remote, nil
+		}
+		return k.loadDiscovery()
+	})
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	case value := <-result:
+		if value.Err != nil {
+			return nil, value.Err
+		}
+		return value.Val.(*oidc.RemoteKeySet), nil
+	}
+}
+func (k *keySet) loadDiscovery() (*oidc.RemoteKeySet, error) {
 	provider, err := oidc.NewProvider(k.ctx, k.issuer)
 	if err != nil {
 		var mismatch *oidc.IssuerMismatchError
@@ -141,12 +177,16 @@ func (k *keySet) discover() (*oidc.RemoteKeySet, error) {
 	if err := provider.Claims(&metadata); err != nil {
 		return nil, err
 	}
-	k.remote = oidc.NewRemoteKeySet(k.ctx, metadata.JWKSURL)
-	return k.remote, nil
+	k.transport.mu.Lock()
+	k.transport.keysURL = metadata.JWKSURL
+	k.transport.mu.Unlock()
+	remote := oidc.NewRemoteKeySet(k.ctx, metadata.JWKSURL)
+	k.remote.Store(remote)
+	return remote, nil
 }
 
 func (k *keySet) VerifySignature(ctx context.Context, token string) ([]byte, error) {
-	remote, err := k.discover()
+	remote, err := k.discover(ctx)
 	if err != nil {
 		k.recordFetchError(ctx, err)
 		return nil, err

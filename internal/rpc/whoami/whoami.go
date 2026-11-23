@@ -10,8 +10,10 @@ import (
 	"github.com/driif/go-vibe-starter/internal/identity"
 )
 
+// Handler implements apiv1connect.WhoAmIServiceHandler. It reads no data.
 type Handler struct{}
 
+// WhoAmI returns the principal the auth middleware stored.
 func (Handler) WhoAmI(ctx context.Context, _ *apiv1.WhoAmIRequest) (*apiv1.WhoAmIResponse, error) {
 	p := identity.FromContext(ctx)
 	if p == nil {

@@ -10,10 +10,11 @@ import (
 )
 
 type replay struct {
-	base  http.RoundTripper
-	ttl   time.Duration
-	mu    sync.Mutex
-	cache map[string]replayed
+	base    http.RoundTripper
+	ttl     time.Duration
+	mu      sync.Mutex
+	cache   map[string]replayed
+	keysURL string
 }
 
 type replayed struct {
@@ -32,7 +33,7 @@ func (r *replay) RoundTrip(req *http.Request) (*http.Response, error) {
 
 	entry, ok := r.cache[req.URL.String()]
 	if !ok || time.Since(entry.at) >= r.ttl {
-		entry = replayed{at: time.Now()}
+		entry = replayed{}
 		entry.response, entry.err = r.base.RoundTrip(req)
 		if entry.err == nil {
 			entry.body, entry.err = io.ReadAll(io.LimitReader(entry.response.Body, (1<<20)+1))
@@ -44,6 +45,10 @@ func (r *replay) RoundTrip(req *http.Request) (*http.Response, error) {
 				entry.err = errors.New("identity provider response exceeds 1 MiB")
 			}
 		}
+		if entry.err == nil && req.URL.String() == r.keysURL && entry.response.StatusCode == http.StatusOK {
+			entry.err = checkSigningKeys(entry.body)
+		}
+		entry.at = time.Now()
 		if r.cache == nil {
 			r.cache = make(map[string]replayed)
 		}

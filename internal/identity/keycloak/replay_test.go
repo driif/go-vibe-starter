@@ -89,3 +89,22 @@ func TestReplay_ConcurrentFetches(t *testing.T) {
 	wg.Wait()
 	assert.Equal(t, 1, calls)
 }
+
+func TestReplayCachesSlowFailureAfterCompletion(t *testing.T) {
+	var calls int
+	r := &replay{ttl: 50 * time.Millisecond, base: roundTripFunc(func(*http.Request) (*http.Response, error) {
+		calls++
+		time.Sleep(100 * time.Millisecond)
+		return nil, errors.New("provider unavailable")
+	})}
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, "http://issuer.test/keys", nil)
+	require.NoError(t, err)
+	for range 2 {
+		resp, err := r.RoundTrip(req)
+		if resp != nil {
+			resp.Body.Close()
+		}
+		require.Error(t, err)
+	}
+	require.Equal(t, 1, calls)
+}

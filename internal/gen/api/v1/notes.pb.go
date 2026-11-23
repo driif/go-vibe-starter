@@ -448,11 +448,10 @@ const file_api_v1_notes_proto_rawDesc = "" +
 	"\x05title\x18\x02 \x01(\tR\x05title\x12\x12\n" +
 	"\x04body\x18\x03 \x01(\tR\x04body\x12;\n" +
 	"\vcreate_time\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\n" +
-	"createTime\"I\n" +
-	"\x11CreateNoteRequest\x12 \n" +
-	"\x05title\x18\x01 \x01(\tB\n" +
-	"\xbaH\ar\x05\x10\x01\x18\xc8\x01R\x05title\x12\x12\n" +
-	"\x04body\x18\x02 \x01(\tR\x04body\"6\n" +
+	"createTime\"X\n" +
+	"\x11CreateNoteRequest\x12$\n" +
+	"\x05title\x18\x01 \x01(\tB\x0e\xbaH\vr\t\x10\x01\x18\xc8\x01\xba\x01\x01\x00R\x05title\x12\x1d\n" +
+	"\x04body\x18\x02 \x01(\tB\t\xbaH\x06r\x04\xba\x01\x01\x00R\x04body\"6\n" +
 	"\x12CreateNoteResponse\x12 \n" +
 	"\x04note\x18\x01 \x01(\v2\f.api.v1.NoteR\x04note\"*\n" +
 	"\x0eGetNoteRequest\x12\x18\n" +

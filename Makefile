@@ -1,8 +1,8 @@
 APP_NAME := app
 BIN := bin/$(APP_NAME)
-TOOLS := $(CURDIR)/bin/tools
+TOOLS := $(CURDIR)/bin/.tools
 
-# the only pins for these four tools; `make tools` installs them into bin/tools
+# the only pins for these four tools; `make tools` installs them into bin/.tools
 BUF_VERSION := v1.75.0
 SQLC_VERSION := v1.31.1
 GOLANGCI_LINT_VERSION := v2.15.0
@@ -37,7 +37,7 @@ define install-tool
 	@touch $(TOOLS)/.$(1)-$(3)
 endef
 
-tools: ## install the pinned buf, sqlc, golangci-lint and govulncheck into bin/tools
+tools: ## install the pinned buf, sqlc, golangci-lint and govulncheck into bin/.tools
 	@mkdir -p $(TOOLS)
 	$(call install-tool,buf,github.com/bufbuild/buf/cmd/buf,$(BUF_VERSION))
 	$(call install-tool,sqlc,github.com/sqlc-dev/sqlc/cmd/sqlc,$(SQLC_VERSION))
@@ -143,9 +143,14 @@ keycloak-up: ## start a fresh Keycloak
 smoke: keycloak-up ## run the smoke tests against compose Keycloak
 	go test -race -count=1 -tags smoke -run '^TestSmoke' ./internal/test/
 
+token: export KC_USER := $(KC_USER)
+token: export KEYCLOAK_ISSUER_URL := $(KEYCLOAK_ISSUER_URL)
 token: ## print an access token for KC_USER from compose Keycloak
-	@curl -fsS -d grant_type=password -d client_id=app-test -d username=$(KC_USER) -d password=password \
-		$(KEYCLOAK_ISSUER_URL)/protocol/openid-connect/token | sed -E 's/.*"access_token":"([^"]+)".*/\1/'
+	@response=$$(curl -fsS -d grant_type=password -d client_id=app-test --data-urlencode "username=$$KC_USER" -d password=password \
+		"$$KEYCLOAK_ISSUER_URL/protocol/openid-connect/token") || exit 1; \
+	 token=$$(printf '%s' "$$response" | sed -nE 's/.*"access_token"[[:space:]]*:[[:space:]]*"([^"]+)".*/\1/p'); \
+	 test -n "$$token" || { echo 'Keycloak response contained no access token' >&2; exit 1; }; \
+	 printf '%s\n' "$$token"
 
 labels: ## create the GitHub issue labels the skills use
 	scripts/setup-labels.sh

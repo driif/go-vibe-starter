@@ -22,5 +22,5 @@ message GetTaskResponse { string title = 1; }
 Use `create_time` / `update_time` for timestamps. Mark reads `NO_SIDE_EFFECTS` so Connect can use
 GET. A list that needs paging conventionally takes `page_size`, `page_token` and returns
 `next_page_token`; the project chooses its token format. The tree has no paged query example.
-Use `bin/tools/buf breaking --against '.git#branch=main'` when changing an existing public contract.
+Use `bin/.tools/buf breaking --against '.git#branch=main'` when changing an existing public contract.
 Run `make gen-proto`; implement the generated handler interface without an unimplemented embed.

@@ -67,7 +67,13 @@ clean
 echo '6. Repeat init'
 "$BASH" scripts/init.sh "${args[@]}" </dev/null
 clean
-if [ "$no_docker" -eq 0 ]; then
+if [ "$no_docker" -eq 1 ]; then
+  echo '7. Rename to a versioned module'
+  printf '%s-client\n' "$module" > sibling-module.txt
+  "$BASH" scripts/init.sh --module "$module/v2" --name tools --yes </dev/null
+  grep -Fxq "$module-client" sibling-module.txt
+  [ -f bin/tools ] && bin/tools --version
+else
   echo '7. Check image'
   compose_started=1
   make image-smoke

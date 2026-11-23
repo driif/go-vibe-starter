@@ -43,11 +43,14 @@ func TestNotes(t *testing.T) {
 	require.NoError(t, err)
 	_, err = alice.GetNote(ctx, &apiv1.GetNoteRequest{Id: id})
 	require.Equal(t, "NOTE_NOT_FOUND", test.Reason(err))
-	for _, title := range []string{"", strings.Repeat("a", 201)} {
+	for _, title := range []string{"", strings.Repeat("a", 201), "nul\x00title"} {
 		_, err = alice.CreateNote(ctx, &apiv1.CreateNoteRequest{Title: title})
 		require.Equal(t, connect.CodeInvalidArgument, connect.CodeOf(err))
 		require.Contains(t, test.Violations(t, err), "title")
 	}
+	_, err = alice.CreateNote(ctx, &apiv1.CreateNoteRequest{Title: "valid", Body: "a\x00b"})
+	require.Equal(t, connect.CodeInvalidArgument, connect.CodeOf(err))
+	require.Contains(t, test.Violations(t, err), "body")
 	_, err = alice.GetNote(ctx, &apiv1.GetNoteRequest{Id: "invalid"})
 	require.Equal(t, connect.CodeInvalidArgument, connect.CodeOf(err))
 	require.Contains(t, test.Violations(t, err), "id")

@@ -10,7 +10,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/coreos/go-oidc/v3/oidc"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -123,8 +122,7 @@ func TestVerify_ProviderDownLater(t *testing.T) {
 	p := testprovider.New()
 	t.Cleanup(p.Close)
 	v := New(p.URL(), testprovider.Audience)
-	r := &replay{base: http.DefaultTransport, ttl: 5 * time.Second}
-	v.keys.ctx = oidc.ClientContext(context.Background(), &http.Client{Transport: r, Timeout: fetchTimeout})
+	r := v.keys.transport
 	raw := p.Token(p.Claims("alice"))
 	_, err := v.Verify(t.Context(), raw)
 	require.NoError(t, err)
@@ -181,8 +179,7 @@ func TestReady(t *testing.T) {
 	t.Cleanup(p.Close)
 	p.SetDown(true)
 	v := New(p.URL(), testprovider.Audience)
-	r := &replay{base: http.DefaultTransport, ttl: 5 * time.Second}
-	v.keys.ctx = oidc.ClientContext(context.Background(), &http.Client{Transport: r, Timeout: fetchTimeout})
+	r := v.keys.transport
 	require.Error(t, v.Ready(t.Context()))
 	p.SetDown(false)
 	r.mu.Lock()
@@ -195,4 +192,18 @@ func TestReady(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, v.Ready(t.Context()))
 	assert.Equal(t, requests, p.Requests())
+}
+
+func TestReadyRequiresSigningKeys(t *testing.T) {
+	mux := http.NewServeMux()
+	issuer := httptest.NewServer(mux)
+	t.Cleanup(issuer.Close)
+	mux.HandleFunc("GET /.well-known/openid-configuration", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"issuer":"` + issuer.URL + `","jwks_uri":"` + issuer.URL + `/keys"}`))
+	})
+	mux.HandleFunc("GET /keys", func(w http.ResponseWriter, _ *http.Request) { _, _ = w.Write([]byte(`{"keys":[]}`)) })
+	verifier := New(issuer.URL, "api")
+	require.ErrorContains(t, verifier.Ready(t.Context()), "no usable signing keys")
+	require.False(t, verifier.keys.ready.Load())
 }

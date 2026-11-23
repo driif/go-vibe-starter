@@ -5,7 +5,6 @@ package db
 
 import (
 	"context"
-
 	"errors"
 	"fmt"
 	"io"
@@ -59,6 +58,7 @@ func migrate(ctx context.Context, url, command string, fsys fs.FS, out io.Writer
 	if command != "up" && command != "down" && command != "status" {
 		return fmt.Errorf("unknown migrate command %q", command)
 	}
+	// parsed as a pool config so pool_* parameters of url are not sent to the server
 	poolConfig, err := pgxpool.ParseConfig(url)
 	if err != nil {
 		return err
@@ -95,14 +95,12 @@ func migrate(ctx context.Context, url, command string, fsys fs.FS, out io.Writer
 			_, _ = fmt.Fprintln(out, result)
 		}
 		return err
-	case "status":
-		statuses, err := provider.Status(ctx)
-		for _, s := range statuses {
-			_, _ = fmt.Fprintf(out, "%-8s %s\n", s.State, path.Base(s.Source.Path))
-		}
-		return err
 	}
-	return fmt.Errorf("unknown migrate command %q", command)
+	statuses, err := provider.Status(ctx)
+	for _, s := range statuses {
+		_, _ = fmt.Fprintf(out, "%-8s %s\n", s.State, path.Base(s.Source.Path))
+	}
+	return err
 }
 
 func checkSchema(ctx context.Context, pool *pgxpool.Pool, fsys fs.FS) error {

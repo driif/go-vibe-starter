@@ -124,13 +124,31 @@ EOF
   fi
   rm -f scripts/template-smoke.sh
 fi
+replace_module() {
+  awk -v report="$1" -v old="$old" -v new="$module" '
+      {
+        rest = $0; result = ""
+        while (i = index(rest, old)) {
+          result = result substr(rest, 1, i-1)
+          rest = substr(rest, i)
+          if (index(new, old) == 1 && index(rest, new) == 1) {
+            result = result new; rest = substr(rest, length(new)+1)
+          } else {
+            rest = substr(rest, length(old)+1)
+            result = result (rest ~ /^[[:alnum:]_~-]/ ? old : new)
+          }
+        }
+        if (!report) print result rest
+        else if (result rest != $0) { print; failed=1 }
+      } END { exit failed }
+    '
+}
 if [ "$old" != "$module" ]; then
-  escaped_old=$(printf '%s' "$old" | sed 's/[][\.^$*+?(){}|\\]/\\&/g')
-  escaped_new=$(printf '%s' "$module" | sed 's/[&|\\]/\\&/g')
   while IFS= read -r -d '' file; do
     [ "$file" != go.mod ] || continue
-    rewrite "$file" "s#${escaped_old}([^A-Za-z0-9_~-]|$)#${escaped_new}\\1#g"
-  done < <(git grep -Iz --untracked -l -F -e "$old" -- . ':!internal/gen' ':!internal/db/gen' || true)
+    replace_module 0 < "$file" >"$tmp/rewrite"
+    if ! cmp -s "$file" "$tmp/rewrite"; then cat "$tmp/rewrite" >"$file"; fi
+  done < <(git grep -Iz --untracked -l -F -e "$old" -- . ':!internal/gen' ':!internal/db/gen' ':!agents/skills' || true)
   go mod edit -module "$module"
 fi
 [ -n "$old_name" ] || fail 'APP_NAME anchor missing in Makefile'
@@ -143,9 +161,11 @@ make sync-skills
 go build ./...
 go vet ./...
 make build
-if [ "$old" != "$module" ] && git grep -nIF --untracked -e "$old" -- . ':!scripts/init.sh'; then
-  fail 'old module path remains'
+if [ "$old" != "$module" ]; then
+  git grep -nIF --untracked -e "$old" -- . ':!scripts/init.sh' >"$tmp/matches" || [ "$?" -eq 1 ]
+  if ! replace_module 1 <"$tmp/matches"; then fail 'old module path remains'; fi
 fi
+
 present=0
 while IFS= read -r -d '' file; do
   [ -f "$file" ] || continue

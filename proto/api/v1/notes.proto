@@ -28,8 +28,9 @@ message CreateNoteRequest {
   string title = 1 [(buf.validate.field).string = {
     min_len: 1
     max_len: 200
+    not_contains: "\u0000"
   }];
-  string body = 2;
+  string body = 2 [(buf.validate.field).string.not_contains = "\u0000"];
 }
 
 message CreateNoteResponse {
